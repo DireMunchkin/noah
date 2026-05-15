@@ -18,9 +18,12 @@ use crate::{
     AppState,
     auth::mint_access_token,
     cache::email_verification_store::EmailVerificationStore,
-    db::{device_repo::DeviceRepository, user_repo::UserRepository},
+    db::{
+        device_repo::DeviceRepository, mailbox_authorization_repo::MailboxAuthorizationRepository,
+        user_repo::UserRepository,
+    },
     errors::ApiError,
-    push::{PushNotificationData, send_push_notification},
+    push::{PushNotificationData, has_expo_push_token, send_expo_push_notification},
     types::{
         AppVersionCheckPayload, AppVersionInfo, AuthEvent, AuthLoginPayload, AuthLoginResponse,
         AuthenticatedUser, EmailVerificationResponse, LightningInvoiceRequestNotification,
@@ -240,6 +243,30 @@ pub async fn lnurlp_request(
         ));
     }
 
+    if !has_expo_push_token(&state, &pubkey).await? {
+        tracing::warn!(
+            pubkey = %pubkey,
+            "Lightning LNURL invoice request rejected because user has no Expo push token"
+        );
+        return Err(ApiError::InvalidArgument(
+            "Lightning payments are not supported on this device right now.".to_string(),
+        ));
+    }
+
+    let mailbox_repo = MailboxAuthorizationRepository::new(&state.db_pool);
+    if !mailbox_repo
+        .has_active_authorization(&pubkey, chrono::Utc::now().timestamp())
+        .await?
+    {
+        tracing::warn!(
+            pubkey = %pubkey,
+            "Lightning LNURL invoice request rejected because user has no active mailbox authorization"
+        );
+        return Err(ApiError::InvalidArgument(
+            "Lightning payments require mailbox notifications to be enabled.".to_string(),
+        ));
+    }
+
     // Generate a unique transaction ID for this payment request
     let transaction_id = Uuid::new_v4().to_string();
 
@@ -264,7 +291,7 @@ pub async fn lnurlp_request(
             priority: Priority::High,
             content_available: true,
         };
-        if let Err(e) = send_push_notification(state_clone, data, Some(pubkey)).await {
+        if let Err(e) = send_expo_push_notification(state_clone, data, Some(pubkey)).await {
             tracing::error!("Failed to send push notification: {}", e);
         }
     });

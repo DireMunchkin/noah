@@ -18,6 +18,18 @@ fn is_expo_token(token: &str) -> bool {
             .is_match(token)
 }
 
+fn notification_type_for_log(data: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(data)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("notification_type")
+                .and_then(|notification_type| notification_type.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
 #[derive(Serialize, Clone, Debug)]
 pub struct PushNotificationData {
     pub title: Option<String>,
@@ -45,7 +57,24 @@ pub async fn send_push_notification(
     data: PushNotificationData,
     pubkey: Option<String>,
 ) -> anyhow::Result<(), ApiError> {
-    send_push_notification_internal(app_state, data, pubkey).await
+    send_push_notification_internal(app_state, data, pubkey, true).await
+}
+
+pub async fn send_expo_push_notification(
+    app_state: AppState,
+    data: PushNotificationData,
+    pubkey: Option<String>,
+) -> anyhow::Result<(), ApiError> {
+    send_push_notification_internal(app_state, data, pubkey, false).await
+}
+
+pub async fn has_expo_push_token(app_state: &AppState, pubkey: &str) -> Result<bool, ApiError> {
+    let push_token_repo = PushTokenRepository::new(&app_state.db_pool);
+    let Some(push_token) = push_token_repo.find_by_pubkey(pubkey).await? else {
+        return Ok(false);
+    };
+
+    Ok(is_expo_token(&push_token))
 }
 
 pub async fn send_push_notification_with_unique_k1(
@@ -189,6 +218,7 @@ async fn send_push_notification_internal(
     app_state: AppState,
     data: PushNotificationData,
     pubkey: Option<String>,
+    allow_unified_push: bool,
 ) -> anyhow::Result<(), ApiError> {
     let expo = Expo::new(ExpoClientOptions {
         access_token: Some(app_state.config.expo_access_token.clone()),
@@ -206,18 +236,42 @@ async fn send_push_notification_internal(
     } else {
         push_token_repo.find_all().await?
     };
+    let notification_type = notification_type_for_log(&data.data);
 
     if push_tokens.is_empty() {
+        tracing::warn!(
+            notification_type,
+            "send_push_notification: no push tokens found for notification"
+        );
         return Ok(());
     }
 
-    tracing::debug!(
+    tracing::info!(
+        notification_type,
         "send_push_notification: Sending to {} tokens",
         push_tokens.len()
     );
 
     let (expo_tokens, unified_tokens): (Vec<_>, Vec<_>) =
         push_tokens.into_iter().partition(|t| is_expo_token(t));
+
+    if !allow_unified_push {
+        if !unified_tokens.is_empty() {
+            tracing::info!(
+                notification_type,
+                skipped_unified_push_tokens = unified_tokens.len(),
+                "send_push_notification: skipping UnifiedPush tokens for Expo-only notification"
+            );
+        }
+
+        if expo_tokens.is_empty() {
+            tracing::warn!(
+                notification_type,
+                "send_push_notification: no Expo push tokens found for Expo-only notification"
+            );
+            return Ok(());
+        }
+    }
 
     if !expo_tokens.is_empty() {
         let chunks = expo_tokens
@@ -258,7 +312,7 @@ async fn send_push_notification_internal(
             .await;
     }
 
-    if !unified_tokens.is_empty() {
+    if allow_unified_push && !unified_tokens.is_empty() {
         let ntfy_auth = app_state.config.ntfy_auth_token.clone();
         let data_clone = data.clone();
         stream::iter(unified_tokens)
@@ -282,9 +336,9 @@ async fn send_push_notification_internal(
             .await;
     }
 
-    tracing::debug!(
-        "send_push_notification: Sent push notification with data: {:?}",
-        data.data
+    tracing::info!(
+        notification_type,
+        "send_push_notification: Sent push notification"
     );
 
     Ok(())
