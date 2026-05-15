@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { View, AppState, AppStateStatus } from "react-native";
+import { View, AppState, AppStateStatus, StyleSheet } from "react-native";
 import { Text } from "./ui/text";
 import { NoahButton } from "./ui/NoahButton";
 import { useBiometrics } from "../hooks/useBiometrics";
@@ -18,6 +18,7 @@ const BiometricGate: React.FC<BiometricGateProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [hasCheckedInitial, setHasCheckedInitial] = useState(false);
+  const [hasUnlockedOnce, setHasUnlockedOnce] = useState(false);
   const isAuthenticatingRef = useRef(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const iconColor = useIconColor();
@@ -35,6 +36,7 @@ const BiometricGate: React.FC<BiometricGateProps> = ({ children }) => {
 
     if (result.isOk()) {
       setIsAuthenticated(true);
+      setHasUnlockedOnce(true);
     } else {
       log.w("Biometric authentication failed", [result.error]);
       setIsAuthenticated(false);
@@ -52,6 +54,7 @@ const BiometricGate: React.FC<BiometricGateProps> = ({ children }) => {
       // Biometrics is disabled, allow access
       setHasCheckedInitial(true);
       setIsAuthenticated(true);
+      setHasUnlockedOnce(true);
     }
   }, [isBiometricsEnabled, hasCheckedInitial, performAuth]);
 
@@ -59,6 +62,7 @@ const BiometricGate: React.FC<BiometricGateProps> = ({ children }) => {
   useEffect(() => {
     if (hasCheckedInitial && !isBiometricsEnabled) {
       setIsAuthenticated(true);
+      setHasUnlockedOnce(true);
     }
   }, [isBiometricsEnabled, hasCheckedInitial]);
 
@@ -111,13 +115,7 @@ const BiometricGate: React.FC<BiometricGateProps> = ({ children }) => {
     return <>{children}</>;
   }
 
-  // If authenticated, show children
-  if (isAuthenticated) {
-    return <>{children}</>;
-  }
-
-  // Show lock screen
-  return (
+  const lockScreen = (
     <View className="flex-1 items-center justify-center bg-background px-8">
       <Icon name="lock-closed-outline" size={64} color={iconColor} />
       <Text className="text-2xl font-bold text-foreground mt-6 mb-2">Noah is Locked</Text>
@@ -127,6 +125,25 @@ const BiometricGate: React.FC<BiometricGateProps> = ({ children }) => {
       <NoahButton onPress={performAuth} disabled={isAuthenticating}>
         {isAuthenticating ? "Authenticating..." : "Unlock"}
       </NoahButton>
+    </View>
+  );
+
+  if (!hasUnlockedOnce) {
+    return lockScreen;
+  }
+
+  const isLocked = !isAuthenticated;
+
+  return (
+    <View className="flex-1">
+      <View className="flex-1" pointerEvents={isLocked ? "none" : "auto"}>
+        {children}
+      </View>
+      {isLocked && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+          {lockScreen}
+        </View>
+      )}
     </View>
   );
 };
