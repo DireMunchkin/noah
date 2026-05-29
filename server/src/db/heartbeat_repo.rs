@@ -32,15 +32,18 @@ impl<'a> HeartbeatRepository<'a> {
         Ok(notification_id)
     }
 
-    /// Marks a heartbeat notification as responded
-    pub async fn mark_as_responded(&self, notification_id: &str) -> Result<bool> {
+    /// Marks a heartbeat notification as responded for the owning user.
+    pub async fn mark_as_responded(&self, notification_id: &str, pubkey: &str) -> Result<bool> {
         let result = sqlx::query(
             "UPDATE heartbeat_notifications
              SET responded_at = now(), status = $1
-             WHERE notification_id = $2 AND status = $3",
+             WHERE notification_id = $2
+               AND pubkey = $3
+               AND status = $4",
         )
         .bind(HeartbeatStatus::Responded.to_string())
         .bind(notification_id)
+        .bind(pubkey)
         .bind(HeartbeatStatus::Pending.to_string())
         .execute(self.pool)
         .await?;
@@ -121,7 +124,8 @@ impl<'a> HeartbeatRepository<'a> {
         let pubkeys = sqlx::query_scalar::<_, String>(
             "SELECT DISTINCT pt.pubkey
              FROM push_tokens pt
-             INNER JOIN users u ON pt.pubkey = u.pubkey",
+             INNER JOIN users u ON pt.pubkey = u.pubkey
+             WHERE u.status = 'active'",
         )
         .fetch_all(self.pool)
         .await?;
@@ -151,9 +155,11 @@ impl<'a> HeartbeatRepository<'a> {
     pub async fn get_users_to_deregister(&self) -> Result<Vec<String>> {
         let pubkeys = sqlx::query_scalar::<_, String>(
             "WITH recent_heartbeats AS (
-                SELECT pubkey, status, sent_at,
-                       ROW_NUMBER() OVER (PARTITION BY pubkey ORDER BY sent_at DESC) as rn
-                FROM heartbeat_notifications
+                SELECT hn.pubkey, hn.status, hn.sent_at,
+                       ROW_NUMBER() OVER (PARTITION BY hn.pubkey ORDER BY hn.sent_at DESC) as rn
+                FROM heartbeat_notifications hn
+                INNER JOIN users u ON hn.pubkey = u.pubkey
+                WHERE u.status = 'active'
             ),
             consecutive_missed AS (
                 SELECT pubkey,
