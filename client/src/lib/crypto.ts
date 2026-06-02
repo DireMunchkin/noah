@@ -5,7 +5,6 @@ import {
   verifyMessage as verifyMessageNitro,
   type KeyPairResult,
 } from "react-native-nitro-ark";
-import { atob } from "react-native-quick-base64";
 import { Result, ok, err, ResultAsync } from "neverthrow";
 import logger from "~/lib/log";
 
