@@ -95,8 +95,11 @@ const getBoardingTxid = (
     return metadata.chain_anchor;
   }
 
-  const candidateVtxo = [...movement.output_vtxos, ...movement.input_vtxos, ...movement.exited_vtxos]
-    .find((id) => typeof id === "string" && id.length > 0);
+  const candidateVtxo = [
+    ...movement.output_vtxos,
+    ...movement.input_vtxos,
+    ...movement.exited_vtxos,
+  ].find((id) => typeof id === "string" && id.length > 0);
 
   return candidateVtxo;
 };

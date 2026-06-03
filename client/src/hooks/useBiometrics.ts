@@ -8,24 +8,21 @@ type BiometricAuthResult = Result<true, { cancelled: boolean; message: string }>
 export const useBiometrics = () => {
   const { isBiometricsEnabled } = useWalletStore();
 
-  const authenticate = useCallback(
-    async (promptMessage: string): Promise<BiometricAuthResult> => {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage,
-        disableDeviceFallback: false,
-      });
+  const authenticate = useCallback(async (promptMessage: string): Promise<BiometricAuthResult> => {
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage,
+      disableDeviceFallback: false,
+    });
 
-      if (result.success) {
-        return ok(true);
-      }
+    if (result.success) {
+      return ok(true);
+    }
 
-      return err({
-        cancelled: result.error === "user_cancel",
-        message: result.error ?? "Authentication failed",
-      });
-    },
-    []
-  );
+    return err({
+      cancelled: result.error === "user_cancel",
+      message: result.error ?? "Authentication failed",
+    });
+  }, []);
 
   const authenticateIfEnabled = useCallback(
     async (promptMessage: string): Promise<BiometricAuthResult> => {
@@ -34,7 +31,7 @@ export const useBiometrics = () => {
       }
       return authenticate(promptMessage);
     },
-    [isBiometricsEnabled, authenticate]
+    [isBiometricsEnabled, authenticate],
   );
 
   const checkAvailability = useCallback(async () => {

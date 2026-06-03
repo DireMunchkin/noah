@@ -228,12 +228,7 @@ const ExitPhaseRail = ({
                 ) : null}
               </View>
               {index < EXIT_STATE_ORDER.length - 1 ? (
-                <View
-                  className={cn(
-                    "h-px flex-1",
-                    isComplete ? "bg-primary/50" : "bg-border",
-                  )}
-                />
+                <View className={cn("h-px flex-1", isComplete ? "bg-primary/50" : "bg-border")} />
               ) : (
                 <View className="flex-1" />
               )}
@@ -247,9 +242,7 @@ const ExitPhaseRail = ({
             >
               {PHASE_LABELS[state]}
             </Text>
-            {count > 1 ? (
-              <Text className="text-[10px] text-muted-foreground">x{count}</Text>
-            ) : null}
+            {count > 1 ? <Text className="text-[10px] text-muted-foreground">x{count}</Text> : null}
           </View>
         );
       })}
@@ -285,56 +278,56 @@ const ExitVtxoRow = ({
   return (
     <Pressable onPress={onPress} className="mb-3 rounded-lg border border-border bg-card p-4">
       <View>
-          <View className="flex-row items-center justify-between">
-            <Text className="text-xl font-semibold text-foreground">
-              {formatBip177(exit.amount_sat)}
-            </Text>
-            <View className={cn("rounded-full border px-3 py-1.5", tone.bgClassName)}>
-              <Text className={cn("text-sm font-semibold", tone.className)}>
-                {EXIT_STATE_LABELS[state]}
-              </Text>
-            </View>
-          </View>
-          <Text className="mt-3 text-base font-medium text-foreground">{statusText}</Text>
-          <Text className="mt-2 text-base text-muted-foreground">
-            {truncateMiddle(exit.vtxo_id, 12, 10)}
+        <View className="flex-row items-center justify-between">
+          <Text className="text-xl font-semibold text-foreground">
+            {formatBip177(exit.amount_sat)}
           </Text>
-          {latestTxid ? (
-            <Pressable
-              onPress={() => {
-                if (latestTxExplorerUrl) {
-                  Linking.openURL(latestTxExplorerUrl);
-                }
-              }}
-              disabled={!latestTxExplorerUrl}
-              hitSlop={8}
-              className="mt-1 flex-row items-center gap-x-1"
-            >
-              <Text className="text-sm text-muted-foreground">
-                Latest tx: {truncateMiddle(latestTxid, 10, 10)}
-              </Text>
-              {latestTxExplorerUrl ? (
-                <Icon name="open-outline" size={15} color={COLORS.BITCOIN_ORANGE} />
-              ) : null}
-            </Pressable>
-          ) : null}
-          {blockRows.length > 0 ? (
-            <View className="mt-3 rounded-md border border-border/60 bg-background/60 px-3 py-2">
-              {blockRows.map((row) => (
-                <View key={row.label} className="flex-row items-center justify-between py-1.5">
-                  <Text className="text-sm text-muted-foreground">{row.label}</Text>
-                  <ExplorerValue value={row.value} explorerUrl={row.explorerUrl} />
-                </View>
-              ))}
-            </View>
-          ) : null}
-          <ExitPhaseRail
-            currentState={state}
-            history={history}
-            historyDetails={historyDetails}
-            currentDetails={details}
-            currentBlockHeight={currentBlockHeight}
-          />
+          <View className={cn("rounded-full border px-3 py-1.5", tone.bgClassName)}>
+            <Text className={cn("text-sm font-semibold", tone.className)}>
+              {EXIT_STATE_LABELS[state]}
+            </Text>
+          </View>
+        </View>
+        <Text className="mt-3 text-base font-medium text-foreground">{statusText}</Text>
+        <Text className="mt-2 text-base text-muted-foreground">
+          {truncateMiddle(exit.vtxo_id, 12, 10)}
+        </Text>
+        {latestTxid ? (
+          <Pressable
+            onPress={() => {
+              if (latestTxExplorerUrl) {
+                Linking.openURL(latestTxExplorerUrl);
+              }
+            }}
+            disabled={!latestTxExplorerUrl}
+            hitSlop={8}
+            className="mt-1 flex-row items-center gap-x-1"
+          >
+            <Text className="text-sm text-muted-foreground">
+              Latest tx: {truncateMiddle(latestTxid, 10, 10)}
+            </Text>
+            {latestTxExplorerUrl ? (
+              <Icon name="open-outline" size={15} color={COLORS.BITCOIN_ORANGE} />
+            ) : null}
+          </Pressable>
+        ) : null}
+        {blockRows.length > 0 ? (
+          <View className="mt-3 rounded-md border border-border/60 bg-background/60 px-3 py-2">
+            {blockRows.map((row) => (
+              <View key={row.label} className="flex-row items-center justify-between py-1.5">
+                <Text className="text-sm text-muted-foreground">{row.label}</Text>
+                <ExplorerValue value={row.value} explorerUrl={row.explorerUrl} />
+              </View>
+            ))}
+          </View>
+        ) : null}
+        <ExitPhaseRail
+          currentState={state}
+          history={history}
+          historyDetails={historyDetails}
+          currentDetails={details}
+          currentBlockHeight={currentBlockHeight}
+        />
       </View>
     </Pressable>
   );
@@ -406,10 +399,11 @@ const UnilateralExitScreen = () => {
   const claimInProgressCount = stateCounts.ClaimInProgress;
   const claimedCount = stateCounts.Claimed;
   const exitTipHeights = exits
-    .map((exit) => statuses[exit.vtxo_id]?.state_details.tip_height ?? exit.state_details.tip_height)
+    .map(
+      (exit) => statuses[exit.vtxo_id]?.state_details.tip_height ?? exit.state_details.tip_height,
+    )
     .filter((height): height is number => typeof height === "number");
-  const latestExitTipHeight =
-    exitTipHeights.length > 0 ? Math.max(...exitTipHeights) : undefined;
+  const latestExitTipHeight = exitTipHeights.length > 0 ? Math.max(...exitTipHeights) : undefined;
   const overviewBlockHeight = overview?.blockHeight;
   const staleExitCount =
     overviewBlockHeight === undefined
@@ -514,9 +508,7 @@ const UnilateralExitScreen = () => {
             ) : overviewQuery.error ? (
               <View className="rounded-lg border border-destructive bg-destructive/10 p-4">
                 <Text className="font-semibold text-destructive">Unable to load exits</Text>
-                <Text className="mt-2 text-sm text-destructive">
-                  {overviewQuery.error.message}
-                </Text>
+                <Text className="mt-2 text-sm text-destructive">{overviewQuery.error.message}</Text>
               </View>
             ) : exits.length === 0 ? (
               <EmptyExitState onStart={() => setShowStartConfirm(true)} />
@@ -557,11 +549,15 @@ const UnilateralExitScreen = () => {
                   <View className="flex-row gap-x-4">
                     <ExitSummaryItem
                       label="Current Height"
-                      value={overview?.blockHeight !== undefined ? `${overview.blockHeight}` : "Unknown"}
+                      value={
+                        overview?.blockHeight !== undefined ? `${overview.blockHeight}` : "Unknown"
+                      }
                     />
                     <ExitSummaryItem
                       label="Exit Synced Tip"
-                      value={latestExitTipHeight !== undefined ? `${latestExitTipHeight}` : "Unknown"}
+                      value={
+                        latestExitTipHeight !== undefined ? `${latestExitTipHeight}` : "Unknown"
+                      }
                     />
                   </View>
                   <View className="mt-4 flex-row gap-x-4">
@@ -573,8 +569,8 @@ const UnilateralExitScreen = () => {
                   </View>
                   {staleExitCount > 0 ? (
                     <Text className="mt-3 text-sm leading-5 text-muted-foreground">
-                      {staleExitCount} {staleExitCount === 1 ? "exit is" : "exits are"} behind
-                      the current chain height. Sync status to refresh chain-derived state.
+                      {staleExitCount} {staleExitCount === 1 ? "exit is" : "exits are"} behind the
+                      current chain height. Sync status to refresh chain-derived state.
                     </Text>
                   ) : null}
                 </View>
@@ -585,8 +581,8 @@ const UnilateralExitScreen = () => {
                       Claim broadcasted
                     </Text>
                     <Text className="mt-1 text-sm leading-5 text-amber-700/90 dark:text-amber-200/90">
-                      No further claim action is available for VTXOs in Claiming. Wait for the
-                      claim transaction to confirm, then sync status to mark them claimed.
+                      No further claim action is available for VTXOs in Claiming. Wait for the claim
+                      transaction to confirm, then sync status to mark them claimed.
                     </Text>
                   </View>
                 ) : null}

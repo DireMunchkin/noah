@@ -191,7 +191,9 @@ export const getExitStatusText = ({
         : "Claim transaction confirmed";
     case "Processing": {
       const txSummary = getProcessingTransactionSummary(details);
-      return txSummary ? `Exit transactions: ${txSummary}` : "Preparing or confirming exit transactions";
+      return txSummary
+        ? `Exit transactions: ${txSummary}`
+        : "Preparing or confirming exit transactions";
     }
     default:
       return "Exit has been registered";
@@ -211,7 +213,9 @@ const getTimelineDescription = ({
     case "Start":
       return "Exit tracking was registered for this VTXO.";
     case "Processing":
-      return getProcessingTransactionSummary(details) ?? "Exit transactions were prepared and monitored.";
+      return (
+        getProcessingTransactionSummary(details) ?? "Exit transactions were prepared and monitored."
+      );
     case "AwaitingDelta": {
       const claimableHeight = getClaimableHeight(details);
       const remaining = formatBlocksRemaining(currentBlockHeight, claimableHeight);

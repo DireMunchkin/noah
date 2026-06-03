@@ -247,81 +247,81 @@ export const AutoBoardingService = memo(({ isReady }: AutoBoardingServiceProps) 
 
   return (
     <ConfirmationDialog
-        title="Board to Ark?"
-        description="Move available onchain funds into Ark while leaving a fee reserve in your onchain wallet."
-        confirmText="Yes, board"
-        cancelText="No, turn off"
-        confirmVariant="default"
-        open={isAutoBoardDialogOpen}
-        onOpenChange={(open) => {
-          setIsAutoBoardDialogOpen(open);
-          if (!open) {
-            if (autoBoardPlan) {
-              setHasAttemptedAutoBoarding(true);
-            }
-            setAutoBoardPlan(null);
+      title="Board to Ark?"
+      description="Move available onchain funds into Ark while leaving a fee reserve in your onchain wallet."
+      confirmText="Yes, board"
+      cancelText="No, turn off"
+      confirmVariant="default"
+      open={isAutoBoardDialogOpen}
+      onOpenChange={(open) => {
+        setIsAutoBoardDialogOpen(open);
+        if (!open) {
+          if (autoBoardPlan) {
+            setHasAttemptedAutoBoarding(true);
           }
-        }}
-        onConfirm={handleConfirmAutoBoard}
-        onCancel={handleDisableAutoBoarding}
-        isConfirmDisabled={isBoarding}
-        contentClassName="w-[92%] rounded-2xl border-border bg-background p-5"
-        headerClassName="gap-2"
-        titleClassName="text-2xl font-bold text-foreground"
-        descriptionClassName="text-base leading-6 text-muted-foreground"
-        footerClassName="mt-1 gap-3 space-x-0"
-        cancelClassName="h-12 rounded-xl border-border bg-background"
-        actionClassName="h-12 rounded-xl"
-      >
-        {autoBoardPlan ? (
-          <View className="gap-3">
-            <View className="rounded-xl border border-border/70 bg-card/80 p-4">
-              <Text className="text-sm font-medium text-muted-foreground">Amount to board</Text>
-              <Text className="mt-1 text-3xl font-bold text-foreground">
-                {formatBip177(autoBoardPlan.grossBoardAmountSat)}
-              </Text>
-              <Text className="mt-1 text-xs leading-5 text-muted-foreground">
-                {formatBip177(autoBoardPlan.netBoardAmountSat)} becomes available in Ark after the
-                boarding fee.
-              </Text>
-            </View>
-
-            <View className="rounded-xl border border-border/70 bg-card/60 px-3 py-1">
-              <AutoBoardPlanRow
-                label="Onchain balance"
-                value={formatBip177(autoBoardPlan.confirmedOnchainBalanceSat)}
-              />
-              <View className="h-px bg-border/70" />
-              <AutoBoardPlanRow
-                label="Ark boarding fee"
-                value={formatBip177(autoBoardPlan.arkFeeSat)}
-                valueClassName="text-red-500"
-              />
-              <View className="h-px bg-border/70" />
-              <AutoBoardPlanRow
-                label="Estimated onchain fee"
-                value={formatBip177(autoBoardPlan.estimatedOnchainFeeSat)}
-                valueClassName="text-red-500"
-              />
-              <View className="h-px bg-border/70" />
-              <AutoBoardPlanRow
-                label="Stays in onchain wallet"
-                value={formatBip177(autoBoardPlan.estimatedRemainingOnchainSat)}
-              />
-              <View className="h-px bg-border/70" />
-              <AutoBoardPlanRow
-                label="Ark amount after fee"
-                value={formatBip177(autoBoardPlan.netBoardAmountSat)}
-                valueClassName="text-green-500"
-              />
-            </View>
-
-            <Text className="text-xs leading-5 text-muted-foreground">
-              Onchain fee uses the regular fee rate and a {autoBoardPlan.estimatedVbytes} vB 2-in/2-out
-              SegWit estimate.
+          setAutoBoardPlan(null);
+        }
+      }}
+      onConfirm={handleConfirmAutoBoard}
+      onCancel={handleDisableAutoBoarding}
+      isConfirmDisabled={isBoarding}
+      contentClassName="w-[92%] rounded-2xl border-border bg-background p-5"
+      headerClassName="gap-2"
+      titleClassName="text-2xl font-bold text-foreground"
+      descriptionClassName="text-base leading-6 text-muted-foreground"
+      footerClassName="mt-1 gap-3 space-x-0"
+      cancelClassName="h-12 rounded-xl border-border bg-background"
+      actionClassName="h-12 rounded-xl"
+    >
+      {autoBoardPlan ? (
+        <View className="gap-3">
+          <View className="rounded-xl border border-border/70 bg-card/80 p-4">
+            <Text className="text-sm font-medium text-muted-foreground">Amount to board</Text>
+            <Text className="mt-1 text-3xl font-bold text-foreground">
+              {formatBip177(autoBoardPlan.grossBoardAmountSat)}
+            </Text>
+            <Text className="mt-1 text-xs leading-5 text-muted-foreground">
+              {formatBip177(autoBoardPlan.netBoardAmountSat)} becomes available in Ark after the
+              boarding fee.
             </Text>
           </View>
-        ) : null}
+
+          <View className="rounded-xl border border-border/70 bg-card/60 px-3 py-1">
+            <AutoBoardPlanRow
+              label="Onchain balance"
+              value={formatBip177(autoBoardPlan.confirmedOnchainBalanceSat)}
+            />
+            <View className="h-px bg-border/70" />
+            <AutoBoardPlanRow
+              label="Ark boarding fee"
+              value={formatBip177(autoBoardPlan.arkFeeSat)}
+              valueClassName="text-red-500"
+            />
+            <View className="h-px bg-border/70" />
+            <AutoBoardPlanRow
+              label="Estimated onchain fee"
+              value={formatBip177(autoBoardPlan.estimatedOnchainFeeSat)}
+              valueClassName="text-red-500"
+            />
+            <View className="h-px bg-border/70" />
+            <AutoBoardPlanRow
+              label="Stays in onchain wallet"
+              value={formatBip177(autoBoardPlan.estimatedRemainingOnchainSat)}
+            />
+            <View className="h-px bg-border/70" />
+            <AutoBoardPlanRow
+              label="Ark amount after fee"
+              value={formatBip177(autoBoardPlan.netBoardAmountSat)}
+              valueClassName="text-green-500"
+            />
+          </View>
+
+          <Text className="text-xs leading-5 text-muted-foreground">
+            Onchain fee uses the regular fee rate and a {autoBoardPlan.estimatedVbytes} vB
+            2-in/2-out SegWit estimate.
+          </Text>
+        </View>
+      ) : null}
     </ConfirmationDialog>
   );
 });

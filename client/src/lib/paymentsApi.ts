@@ -141,9 +141,7 @@ export const estimateBoardOffchainFee = async (
 ): Promise<Result<BarkFeeEstimate, Error>> => {
   return ResultAsync.fromPromise(estimateBoardOffchainFeeNitro(amountSat), (error) => {
     return new Error(
-      `Failed to estimate boarding fee: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      `Failed to estimate boarding fee: ${error instanceof Error ? error.message : String(error)}`,
     );
   });
 };
@@ -173,12 +171,15 @@ export const payLightningInvoice = async (
   destination: string,
   amountSat: number | undefined,
 ): Promise<Result<LightningPayment, Error>> => {
-  return ResultAsync.fromPromise(payLightningInvoiceNitro(destination, true, amountSat), (error) => {
-    const e = new Error(
-      `Failed to send bolt11 payment: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return e;
-  });
+  return ResultAsync.fromPromise(
+    payLightningInvoiceNitro(destination, true, amountSat),
+    (error) => {
+      const e = new Error(
+        `Failed to send bolt11 payment: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return e;
+    },
+  );
 };
 
 export const payLightningOffer = async (
@@ -317,9 +318,7 @@ export const estimateOnchainWalletSendFee = async ({
 
 export const estimateStandardOnchainTxFee = async (
   feeRateTier: OnchainFeeRateTier,
-): Promise<
-  Result<StandardOnchainWalletFeeEstimate, Error>
-> => {
+): Promise<Result<StandardOnchainWalletFeeEstimate, Error>> => {
   const ratesResult = await onchainFeeRates();
   if (ratesResult.isErr()) {
     return err(ratesResult.error);
@@ -353,15 +352,18 @@ export const payLightningAddress = async (
   amountSat: number,
   comment: string,
 ): Promise<Result<LightningPayment, Error>> => {
-  return ResultAsync.fromPromise(payLightningAddressNitro(addr, amountSat, comment, true), (error) => {
-    const e = new Error(
-      `Failed to send to lightning address: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+  return ResultAsync.fromPromise(
+    payLightningAddressNitro(addr, amountSat, comment, true),
+    (error) => {
+      const e = new Error(
+        `Failed to send to lightning address: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
 
-    return e;
-  });
+      return e;
+    },
+  );
 };
 
 export const checkLightningPayment = async (

@@ -1,16 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle, CloudUpload } from "lucide-react-native";
 import { NoahActivityIndicator } from "~/components/ui/NoahActivityIndicator";
-import {
-  StatusBannerStrip,
-  type StatusBannerTone,
-} from "~/components/StatusBannerStrip";
+import { StatusBannerStrip, type StatusBannerTone } from "~/components/StatusBannerStrip";
 import { useBackupStore } from "~/store/backupStore";
 import { useServerStore } from "~/store/serverStore";
-import {
-  AUTO_BACKUP_FRESHNESS_MS,
-  AUTO_BACKUP_SUCCESS_BANNER_MS,
-} from "~/constants";
+import { AUTO_BACKUP_FRESHNESS_MS, AUTO_BACKUP_SUCCESS_BANNER_MS } from "~/constants";
 import { BackupService } from "~/lib/backupService";
 import logger from "~/lib/log";
 import { redactSensitiveErrorMessage } from "~/lib/errorUtils";
@@ -36,9 +30,7 @@ export const BackupStatusBanner: React.FC = () => {
 
     const now = Date.now();
     const successExpiresAt =
-      lastBackupStatus === "success"
-        ? lastBackupAt + AUTO_BACKUP_SUCCESS_BANNER_MS
-        : null;
+      lastBackupStatus === "success" ? lastBackupAt + AUTO_BACKUP_SUCCESS_BANNER_MS : null;
     const staleAt = lastBackupAt + AUTO_BACKUP_FRESHNESS_MS;
 
     let nextAt: number | null = null;

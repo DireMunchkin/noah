@@ -9,11 +9,7 @@ type BlinkingCaretProps = {
 
 const BLINK_INTERVAL_MS = 530;
 
-export const BlinkingCaret = ({
-  color,
-  height = 38,
-  visible,
-}: BlinkingCaretProps) => {
+export const BlinkingCaret = ({ color, height = 38, visible }: BlinkingCaretProps) => {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {

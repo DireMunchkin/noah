@@ -46,10 +46,7 @@ export const ReceiveSuccess: React.FC<ReceiveSuccessProps> = ({
             <ReceiveAnimation />
           </Animated.View>
 
-          <Animated.View
-            entering={FadeInUp.duration(520).delay(180)}
-            className="mt-6 items-center"
-          >
+          <Animated.View entering={FadeInUp.duration(520).delay(180)} className="mt-6 items-center">
             <Text className="text-center text-4xl font-bold text-foreground">
               {formatBip177(amountSat)}
             </Text>

@@ -35,11 +35,7 @@ export const StatusBannerStrip = ({
         : "border-border/70 bg-card/70";
 
   const iconContainerClassName =
-    tone === "failed"
-      ? "bg-red-500/10"
-      : tone === "success"
-        ? "bg-green-500/10"
-        : "bg-blue-500/10";
+    tone === "failed" ? "bg-red-500/10" : tone === "success" ? "bg-green-500/10" : "bg-blue-500/10";
 
   const actionTextClassName = tone === "failed" ? "text-red-500" : "text-foreground";
 

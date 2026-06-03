@@ -5,10 +5,7 @@ import { redactSensitiveErrorMessage } from "~/lib/errorUtils";
 import { useBackupStore } from "~/store/backupStore";
 import { useServerStore } from "~/store/serverStore";
 import { useWalletStore } from "~/store/walletStore";
-import {
-  AUTO_BACKUP_FRESHNESS_MS,
-  AUTO_BACKUP_MIN_INTERVAL_MS,
-} from "~/constants";
+import { AUTO_BACKUP_FRESHNESS_MS, AUTO_BACKUP_MIN_INTERVAL_MS } from "~/constants";
 
 const log = logger("backupAuto");
 
@@ -42,7 +39,11 @@ const shouldTriggerAutoBackup = (options: AutoBackupOptions): boolean => {
     return false;
   }
 
-  if (!options.force && lastBackupAttemptAt && now - lastBackupAttemptAt < AUTO_BACKUP_MIN_INTERVAL_MS) {
+  if (
+    !options.force &&
+    lastBackupAttemptAt &&
+    now - lastBackupAttemptAt < AUTO_BACKUP_MIN_INTERVAL_MS
+  ) {
     return false;
   }
 

@@ -10,11 +10,8 @@ const MAILBOX_AUTH_REFRESH_WINDOW_SECS = 7 * 24 * 60 * 60;
 
 export const useMailboxAuthorization = (isReady: boolean) => {
   const [refreshTick, setRefreshTick] = useState(0);
-  const {
-    isRegisteredWithServer,
-    mailboxAuthorizationExpiry,
-    isMailboxAuthorizationEnabled,
-  } = useServerStore();
+  const { isRegisteredWithServer, mailboxAuthorizationExpiry, isMailboxAuthorizationEnabled } =
+    useServerStore();
 
   useEffect(() => {
     let isCancelled = false;
@@ -99,10 +96,5 @@ export const useMailboxAuthorization = (isReady: boolean) => {
     return () => {
       clearTimeout(timeout);
     };
-  }, [
-    isReady,
-    isRegisteredWithServer,
-    isMailboxAuthorizationEnabled,
-    mailboxAuthorizationExpiry,
-  ]);
+  }, [isReady, isRegisteredWithServer, isMailboxAuthorizationEnabled, mailboxAuthorizationExpiry]);
 };

@@ -197,20 +197,14 @@ const ReceiveScreen = () => {
   const [arkSubscriptionRetryTick, setArkSubscriptionRetryTick] = useState(0);
   const [lightningSubscriptionRetryTick, setLightningSubscriptionRetryTick] = useState(0);
 
-  const {
-    mutateAsync: generateOffchainAddress,
-    isPending: isGeneratingVtxo,
-  } = useGenerateOffchainAddress();
+  const { mutateAsync: generateOffchainAddress, isPending: isGeneratingVtxo } =
+    useGenerateOffchainAddress();
 
-  const {
-    mutateAsync: generateOnchainAddress,
-    isPending: isGeneratingOnchain,
-  } = useGenerateOnchainAddress();
+  const { mutateAsync: generateOnchainAddress, isPending: isGeneratingOnchain } =
+    useGenerateOnchainAddress();
 
-  const {
-    mutateAsync: generateLightningInvoice,
-    isPending: isGeneratingLightning,
-  } = useGenerateLightningInvoice();
+  const { mutateAsync: generateLightningInvoice, isPending: isGeneratingLightning } =
+    useGenerateLightningInvoice();
 
   const isLoading = isGeneratingVtxo || isGeneratingOnchain || isGeneratingLightning;
   const generatedAmountSat = generatedRequest?.amountSat ?? null;
@@ -296,43 +290,37 @@ const ReceiveScreen = () => {
     lightningSubscriptionRetryTimeoutRef.current = null;
   }, []);
 
-  const scheduleArkSubscriptionRetry = useCallback(
-    (sessionId: number) => {
-      if (arkSubscriptionRetryTimeoutRef.current) {
+  const scheduleArkSubscriptionRetry = useCallback((sessionId: number) => {
+    if (arkSubscriptionRetryTimeoutRef.current) {
+      return;
+    }
+
+    arkSubscriptionRetryTimeoutRef.current = setTimeout(() => {
+      arkSubscriptionRetryTimeoutRef.current = null;
+
+      if (activeReceiveSessionRef.current?.sessionId !== sessionId) {
         return;
       }
 
-      arkSubscriptionRetryTimeoutRef.current = setTimeout(() => {
-        arkSubscriptionRetryTimeoutRef.current = null;
+      setArkSubscriptionRetryTick((tick) => tick + 1);
+    }, SUBSCRIPTION_RETRY_DELAY_MS);
+  }, []);
 
-        if (activeReceiveSessionRef.current?.sessionId !== sessionId) {
-          return;
-        }
+  const scheduleLightningSubscriptionRetry = useCallback((sessionId: number) => {
+    if (lightningSubscriptionRetryTimeoutRef.current) {
+      return;
+    }
 
-        setArkSubscriptionRetryTick((tick) => tick + 1);
-      }, SUBSCRIPTION_RETRY_DELAY_MS);
-    },
-    [],
-  );
+    lightningSubscriptionRetryTimeoutRef.current = setTimeout(() => {
+      lightningSubscriptionRetryTimeoutRef.current = null;
 
-  const scheduleLightningSubscriptionRetry = useCallback(
-    (sessionId: number) => {
-      if (lightningSubscriptionRetryTimeoutRef.current) {
+      if (activeReceiveSessionRef.current?.sessionId !== sessionId) {
         return;
       }
 
-      lightningSubscriptionRetryTimeoutRef.current = setTimeout(() => {
-        lightningSubscriptionRetryTimeoutRef.current = null;
-
-        if (activeReceiveSessionRef.current?.sessionId !== sessionId) {
-          return;
-        }
-
-        setLightningSubscriptionRetryTick((tick) => tick + 1);
-      }, SUBSCRIPTION_RETRY_DELAY_MS);
-    },
-    [],
-  );
+      setLightningSubscriptionRetryTick((tick) => tick + 1);
+    }, SUBSCRIPTION_RETRY_DELAY_MS);
+  }, []);
 
   const clearGeneratedReceiveData = useCallback(
     ({ resetAmount }: { resetAmount: boolean }) => {
@@ -573,10 +561,7 @@ const ReceiveScreen = () => {
         }
 
         if (nextLightningInvoiceResult.status === "rejected") {
-          log.w("Receive rail generation failed", [
-            "lightning",
-            nextLightningInvoiceResult.reason,
-          ]);
+          log.w("Receive rail generation failed", ["lightning", nextLightningInvoiceResult.reason]);
         }
 
         const nextOnchainAddress =

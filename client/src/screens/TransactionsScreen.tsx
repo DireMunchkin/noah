@@ -26,13 +26,7 @@ const TransactionsScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<TransactionsStackParamList>>();
   const parentNavigation = navigation.getParent<NavigationProp<TabParamList>>();
   const iconColor = useIconColor();
-  const {
-    data: transactions = [],
-    isLoading,
-    isError,
-    isRefetching,
-    refetch,
-  } = useTransactions();
+  const { data: transactions = [], isLoading, isError, isRefetching, refetch } = useTransactions();
   const [filter, setFilter] = useState<PaymentTypes | "all" | "Lightning">("all");
 
   const filteredTransactions =
@@ -65,7 +59,8 @@ const TransactionsScreen = () => {
       "Payment ID,Date,Type,Direction,Amount (₿),BTC Price,Transaction ID,Destination\n";
     const csvRows = filteredTransactions
       .map((transaction) => {
-        const date = transaction.dateLabel ?? new Date(transaction.date).toISOString().split("T")[0];
+        const date =
+          transaction.dateLabel ?? new Date(transaction.date).toISOString().split("T")[0];
         const type =
           transaction.type === "Bolt11" || transaction.type === "Lnurl"
             ? "Lightning"

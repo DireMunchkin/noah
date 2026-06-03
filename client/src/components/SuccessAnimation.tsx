@@ -77,12 +77,7 @@ const SuccessAnimation = ({
           fill={COLORS.BITCOIN_ORANGE}
           animatedProps={coinAnimatedProps}
         />
-        <AnimatedCircle
-          cx="80"
-          cy="80"
-          fill="#D59A43"
-          animatedProps={innerCoinAnimatedProps}
-        />
+        <AnimatedCircle cx="80" cy="80" fill="#D59A43" animatedProps={innerCoinAnimatedProps} />
         <AnimatedPath
           d="M 58 80 L 73 95 L 104 64"
           stroke="white"

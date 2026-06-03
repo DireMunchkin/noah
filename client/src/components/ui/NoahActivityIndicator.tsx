@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, ActivityIndicatorProps } from "react-native";
 import { COLORS } from "../../lib/styleConstants";
 
-interface NoahActivityIndicatorProps extends Omit<ActivityIndicatorProps, 'color'> {
+interface NoahActivityIndicatorProps extends Omit<ActivityIndicatorProps, "color"> {
   size?: "small" | "large" | number;
   color?: string;
 }

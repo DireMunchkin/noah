@@ -191,9 +191,7 @@ export type SendFeeEstimateParams =
 
 export type SendFeeEstimate = BarkFeeEstimate | OnchainWalletFeeEstimate;
 
-const readEstimateResult = async <T>(
-  estimatePromise: Promise<Result<T, Error>>,
-): Promise<T> => {
+const readEstimateResult = async <T>(estimatePromise: Promise<Result<T, Error>>): Promise<T> => {
   const result = await estimatePromise;
   if (result.isErr()) {
     throw result.error;
@@ -312,10 +310,7 @@ export function useBoardArkFeeEstimate(params: BoardArkFeeEstimateParams | null)
         },
       };
     },
-    enabled:
-      params !== null &&
-      params.amountSat > 0 &&
-      params.confirmedOnchainBalanceSat > 0,
+    enabled: params !== null && params.amountSat > 0 && params.confirmedOnchainBalanceSat > 0,
     staleTime: 20 * 1000,
     retry: false,
   });
@@ -432,7 +427,10 @@ async function handleNoahWalletPayment(
   destination: string,
   amountSat: number,
   comment: string | null,
-): Promise<Result<ArkoorPaymentResult | LightningPayment | NoahOnchainPaymentResult, Error> | null> {
+): Promise<Result<
+  ArkoorPaymentResult | LightningPayment | NoahOnchainPaymentResult,
+  Error
+> | null> {
   try {
     const [user, domain] = destination.split("@");
     const lnurlEndpoint = `https://${domain}/.well-known/lnurlp/${user}`;

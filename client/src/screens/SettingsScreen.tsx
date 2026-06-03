@@ -29,10 +29,7 @@ import { resetAndReRegisterWithServer } from "../lib/server";
 import { useBottomTabBarHeight } from "react-native-bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { revokeMailboxAuthorization } from "~/lib/api";
-import {
-  AUTO_BOARD_ONCHAIN_BUFFER_AMOUNT,
-  formatAutoBoardThreshold,
-} from "~/lib/autoBoarding";
+import { AUTO_BOARD_ONCHAIN_BUFFER_AMOUNT, formatAutoBoardThreshold } from "~/lib/autoBoarding";
 
 type Setting = {
   id:

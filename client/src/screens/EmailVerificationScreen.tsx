@@ -233,9 +233,7 @@ const EmailVerificationScreen = () => {
             </NoahButton>
             {!fromSettings && (
               <Pressable onPress={handleSkip} className="mt-5 items-center">
-                <Text className="text-muted-foreground font-semibold">
-                  Continue without email
-                </Text>
+                <Text className="text-muted-foreground font-semibold">Continue without email</Text>
               </Pressable>
             )}
           </>

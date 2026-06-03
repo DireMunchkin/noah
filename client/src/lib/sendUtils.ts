@@ -120,8 +120,7 @@ export const parseBip321Uri = (uri: string): ParsedDestination => {
       }
     }
 
-    const parsedAmount =
-      typeof result.amount === "number" ? btcToSats(result.amount) : null;
+    const parsedAmount = typeof result.amount === "number" ? btcToSats(result.amount) : null;
 
     const parsed: ParsedDestination = {
       destinationType: "bip321",

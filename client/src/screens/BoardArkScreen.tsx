@@ -37,6 +37,7 @@ import { HomeStackParamList } from "~/Navigators";
 import { BoardResult } from "react-native-nitro-ark";
 import { useTransactionStore } from "~/store/transactionStore";
 import { FeeEstimateSummary } from "~/components/FeeEstimateSummary";
+import { FeeEstimateBox, FeeEstimateRow, FeeEstimateSeparator } from "~/components/FeeEstimateBox";
 
 const log = logger("BoardArkScreen");
 
@@ -102,20 +103,13 @@ const BalanceDisplay = ({
       <NoahActivityIndicator className="mt-2" />
     ) : (
       <>
-        <Text
-          className={cn(
-            "font-bold text-foreground mt-1",
-            compact ? "text-2xl" : "text-3xl",
-          )}
-        >
+        <Text className={cn("font-bold text-foreground mt-1", compact ? "text-2xl" : "text-3xl")}>
           {formatBip177(amount)}
         </Text>
         {pendingAmount !== undefined && pendingAmount > 0 && (
           <Text
             className={
-              compact
-                ? "text-sm text-muted-foreground mt-1"
-                : "text-xl text-muted-foreground mt-1"
+              compact ? "text-sm text-muted-foreground mt-1" : "text-xl text-muted-foreground mt-1"
             }
           >
             {formatBip177(pendingAmount)} pending
@@ -222,14 +216,11 @@ const BoardFeeEstimateSummary = ({
   const unavailable = result?.kind === "unavailable" ? result.unavailable : null;
 
   return (
-    <View className="mt-3 rounded-[18px] border border-border/70 bg-card/70 px-3 py-3">
-      <View className="mb-1 flex-row items-center justify-between">
-        <Text className="text-xs font-semibold uppercase tracking-[2px] text-muted-foreground">
-          Rough fee estimate
-        </Text>
-        {isLoading || isWaitingForDebounce ? <NoahActivityIndicator size="small" /> : null}
-      </View>
-
+    <FeeEstimateBox
+      title="Rough fee estimate"
+      isLoading={isLoading || isWaitingForDebounce}
+      compact
+    >
       {estimate ? (
         <>
           {estimate.is_max_amount ? (
@@ -237,45 +228,41 @@ const BoardFeeEstimateSummary = ({
               Max estimate leaves room for the onchain transaction fee.
             </Text>
           ) : null}
-          <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-muted-foreground">Amount to board</Text>
-            <Text className="text-sm font-semibold text-foreground">
-              {formatBip177(estimate.gross_amount_sat)}
-            </Text>
-          </View>
-          <View className="h-px bg-border/70" />
-          <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-muted-foreground">Ark boarding fee</Text>
-            <Text className="text-sm font-semibold text-red-500">
-              {formatBip177(estimate.fee_sat)}
-            </Text>
-          </View>
-          <View className="h-px bg-border/70" />
-          <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-muted-foreground">Estimated onchain fee</Text>
-            <Text className="text-sm font-semibold text-red-500">
-              {formatBip177(estimate.estimated_onchain_fee_sat)}
-            </Text>
-          </View>
-          <View className="h-px bg-border/70" />
-          <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-muted-foreground">Stays in onchain wallet</Text>
-            <Text
-              className={cn(
-                "text-sm font-semibold",
-                estimate.estimated_remaining_onchain_sat < 0 ? "text-red-500" : "text-foreground",
-              )}
-            >
-              {formatBip177(estimate.estimated_remaining_onchain_sat)}
-            </Text>
-          </View>
-          <View className="h-px bg-border/70" />
-          <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-muted-foreground">Ark amount after fee</Text>
-            <Text className="text-sm font-semibold text-green-500">
-              {formatBip177(estimate.net_amount_sat)}
-            </Text>
-          </View>
+          <FeeEstimateRow
+            label="Amount to board"
+            value={formatBip177(estimate.gross_amount_sat)}
+            compact
+          />
+          <FeeEstimateSeparator />
+          <FeeEstimateRow
+            label="Ark boarding fee"
+            value={formatBip177(estimate.fee_sat)}
+            compact
+            valueClassName="text-red-500"
+          />
+          <FeeEstimateSeparator />
+          <FeeEstimateRow
+            label="Estimated onchain fee"
+            value={formatBip177(estimate.estimated_onchain_fee_sat)}
+            compact
+            valueClassName="text-red-500"
+          />
+          <FeeEstimateSeparator />
+          <FeeEstimateRow
+            label="Stays in onchain wallet"
+            value={formatBip177(estimate.estimated_remaining_onchain_sat)}
+            compact
+            valueClassName={
+              estimate.estimated_remaining_onchain_sat < 0 ? "text-red-500" : undefined
+            }
+          />
+          <FeeEstimateSeparator />
+          <FeeEstimateRow
+            label="Ark amount after fee"
+            value={formatBip177(estimate.net_amount_sat)}
+            compact
+            valueClassName="text-green-500"
+          />
           <Text className="mt-2 text-xs leading-5 text-muted-foreground">
             Onchain fee uses the regular fee rate and a {estimate.estimated_vbytes} vB 2-in/2-out
             SegWit estimate.
@@ -288,27 +275,25 @@ const BoardFeeEstimateSummary = ({
               ? `Max leaves ${formatBip177(unavailable.boardable_amount_sat)} after the estimated onchain fee, which is below Ark's minimum board amount.`
               : `Enter at least ${formatBip177(unavailable.minimum_board_amount_sat)} to meet Ark's minimum board amount.`}
           </Text>
-          <View className="mt-2 h-px bg-border/70" />
-          <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-muted-foreground">Minimum board amount</Text>
-            <Text className="text-sm font-semibold text-foreground">
-              {formatBip177(unavailable.minimum_board_amount_sat)}
-            </Text>
-          </View>
-          <View className="h-px bg-border/70" />
-          <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-muted-foreground">Estimated onchain fee</Text>
-            <Text className="text-sm font-semibold text-red-500">
-              {formatBip177(unavailable.estimated_onchain_fee_sat)}
-            </Text>
-          </View>
-          <View className="h-px bg-border/70" />
-          <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-muted-foreground">Minimum balance needed</Text>
-            <Text className="text-sm font-semibold text-foreground">
-              {formatBip177(unavailable.minimum_required_balance_sat)}
-            </Text>
-          </View>
+          <FeeEstimateSeparator className="mt-2" />
+          <FeeEstimateRow
+            label="Minimum board amount"
+            value={formatBip177(unavailable.minimum_board_amount_sat)}
+            compact
+          />
+          <FeeEstimateSeparator />
+          <FeeEstimateRow
+            label="Estimated onchain fee"
+            value={formatBip177(unavailable.estimated_onchain_fee_sat)}
+            compact
+            valueClassName="text-red-500"
+          />
+          <FeeEstimateSeparator />
+          <FeeEstimateRow
+            label="Minimum balance needed"
+            value={formatBip177(unavailable.minimum_required_balance_sat)}
+            compact
+          />
           <Text className="mt-2 text-xs leading-5 text-muted-foreground">
             Onchain fee uses the regular fee rate and a {unavailable.estimated_vbytes} vB 2-in/2-out
             SegWit estimate.
@@ -321,7 +306,7 @@ const BoardFeeEstimateSummary = ({
       ) : (
         <Text className="text-sm text-muted-foreground">Estimating fees...</Text>
       )}
-    </View>
+    </FeeEstimateBox>
   );
 };
 
@@ -481,12 +466,7 @@ const BoardArkScreen = () => {
   } | null>(null);
 
   const boardEstimateParams = useMemo(() => {
-    if (
-      flow !== "onboard" ||
-      boardAmountSat === null ||
-      onchainBalance <= 0 ||
-      !arkInfo
-    ) {
+    if (flow !== "onboard" || boardAmountSat === null || onchainBalance <= 0 || !arkInfo) {
       return null;
     }
 
@@ -532,7 +512,9 @@ const BoardArkScreen = () => {
   const offboardFeeEstimateQuery = useOffboardAllFeeEstimate(debouncedOffboardEstimateAddress);
   const isCurrentBoardEstimate =
     !!boardEstimateParams && debouncedBoardEstimateParams === boardEstimateParams;
-  const currentBoardEstimateResult = isCurrentBoardEstimate ? boardFeeEstimateQuery.data : undefined;
+  const currentBoardEstimateResult = isCurrentBoardEstimate
+    ? boardFeeEstimateQuery.data
+    : undefined;
   const isBoardEstimatePending =
     flow === "onboard" &&
     !!boardEstimateParams &&
@@ -618,7 +600,8 @@ const BoardArkScreen = () => {
     ) {
       showAlert({
         title: "Insufficient Funds",
-        description: "The amount plus estimated onchain fee exceeds your confirmed on-chain balance.",
+        description:
+          "The amount plus estimated onchain fee exceeds your confirmed on-chain balance.",
       });
       return;
     }
@@ -775,6 +758,7 @@ const BoardArkScreen = () => {
                       feeLabel="Estimated fee"
                       grossLabel="Total offboarded"
                       compact
+                      feeValueClassName="text-red-500"
                       unavailableText="Fee estimate unavailable. The final fee will be calculated when you offboard."
                     />
                   ) : null}

@@ -17,10 +17,7 @@ type HistoryRefreshButtonProps = {
   onRefresh: () => void | Promise<unknown>;
 };
 
-export const HistoryRefreshButton = ({
-  isRefreshing,
-  onRefresh,
-}: HistoryRefreshButtonProps) => {
+export const HistoryRefreshButton = ({ isRefreshing, onRefresh }: HistoryRefreshButtonProps) => {
   const iconColor = useIconColor();
   const colors = useThemeColors();
   const rotation = useSharedValue(0);

@@ -252,9 +252,7 @@ const ArkInfoScreen = () => {
                 backgroundColor: `${colors.card}CC`,
               }}
             >
-              <Text className="text-lg font-semibold text-foreground">
-                Ark info unavailable
-              </Text>
+              <Text className="text-lg font-semibold text-foreground">Ark info unavailable</Text>
               <Text className="mt-2 text-sm leading-6 text-muted-foreground">
                 {error instanceof Error ? error.message : "Failed to load Ark server info."}
               </Text>

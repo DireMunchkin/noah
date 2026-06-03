@@ -175,7 +175,10 @@ export const SendConfirmation: React.FC<SendConfirmationProps> = ({
           ) : null}
         </View>
 
-        {destinationType === "bip321" && bip321Data && selectedPaymentMethod && onSelectPaymentMethod ? (
+        {destinationType === "bip321" &&
+        bip321Data &&
+        selectedPaymentMethod &&
+        onSelectPaymentMethod ? (
           <Bip321Picker
             bip321Data={bip321Data}
             selectedPaymentMethod={selectedPaymentMethod}

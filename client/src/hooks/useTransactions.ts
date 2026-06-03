@@ -37,8 +37,7 @@ const SUBSYSTEM_KIND_TO_MOVEMENT_KIND: Partial<Record<BarkSubsystemId, MovementK
   [`${BARK_SUBSYSTEM.BOARD.name}:${BARK_SUBSYSTEM.BOARD.kind}`]: "onboard",
   [`${BARK_SUBSYSTEM.OFFBOARD.name}:${BARK_SUBSYSTEM.OFFBOARD.kind}`]: "offboard",
   [`${BARK_SUBSYSTEM.SEND_ONCHAIN.name}:${BARK_SUBSYSTEM.SEND_ONCHAIN.kind}`]: "send-onchain",
-  [`${BARK_SUBSYSTEM.ARKOOR_RECEIVE.name}:${BARK_SUBSYSTEM.ARKOOR_RECEIVE.kind}`]:
-    "arkoor-receive",
+  [`${BARK_SUBSYSTEM.ARKOOR_RECEIVE.name}:${BARK_SUBSYSTEM.ARKOOR_RECEIVE.kind}`]: "arkoor-receive",
   [`${BARK_SUBSYSTEM.ROUND_OFFBOARD.name}:${BARK_SUBSYSTEM.ROUND_OFFBOARD.kind}`]: "offboard",
   [`${BARK_SUBSYSTEM.ROUND_SEND_ONCHAIN.name}:${BARK_SUBSYSTEM.ROUND_SEND_ONCHAIN.kind}`]:
     "send-onchain",
@@ -331,12 +330,8 @@ const transformOnchainTransaction = async (
     hasOnchainFee: transaction.has_onchain_fee,
     onchainFeeSat: transaction.has_onchain_fee ? transaction.onchain_fee_sat : undefined,
     hasConfirmation: transaction.has_confirmation,
-    confirmationHeight: transaction.has_confirmation
-      ? transaction.confirmation_height
-      : undefined,
-    confirmationHash: transaction.has_confirmation
-      ? transaction.confirmation_hash
-      : undefined,
+    confirmationHeight: transaction.has_confirmation ? transaction.confirmation_height : undefined,
+    confirmationHash: transaction.has_confirmation ? transaction.confirmation_hash : undefined,
   };
 };
 
@@ -411,7 +406,9 @@ const fetchAndTransformTransactions = async (): Promise<Transaction[]> => {
   }
 
   const movements = movementsResult.value.filter(shouldIncludeMovement);
-  const walletTransactions = onchainTransactionsResult.value.filter(shouldIncludeOnchainTransaction);
+  const walletTransactions = onchainTransactionsResult.value.filter(
+    shouldIncludeOnchainTransaction,
+  );
 
   if (movements.length === 0 && walletTransactions.length === 0) {
     return [];

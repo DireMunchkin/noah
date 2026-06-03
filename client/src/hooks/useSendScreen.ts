@@ -42,9 +42,7 @@ const formatFeeRate = (feeRateSatVb: number) => {
   return feeRateSatVb.toFixed(2).replace(/\.?0+$/, "");
 };
 
-const isOnchainWalletFeeEstimate = (
-  estimate: unknown,
-): estimate is OnchainWalletFeeEstimate => {
+const isOnchainWalletFeeEstimate = (estimate: unknown): estimate is OnchainWalletFeeEstimate => {
   if (!estimate || typeof estimate !== "object") {
     return false;
   }
@@ -185,10 +183,7 @@ export const useSendScreen = () => {
       return;
     }
 
-    if (
-      selectedOnchainSource !== null &&
-      !onchainSourceOptions.includes(selectedOnchainSource)
-    ) {
+    if (selectedOnchainSource !== null && !onchainSourceOptions.includes(selectedOnchainSource)) {
       setSelectedOnchainSource(null);
     }
   }, [amountSat, isOnchainSend, onchainSourceOptions, selectedOnchainSource]);
@@ -497,7 +492,7 @@ export const useSendScreen = () => {
         resolvedAmountSat: amountSat,
         comment: comment || null,
         onchainSource:
-          newDestinationType === "onchain" ? resolvedOnchainSource ?? undefined : undefined,
+          newDestinationType === "onchain" ? (resolvedOnchainSource ?? undefined) : undefined,
         btcPrice,
       });
     } else {
@@ -517,7 +512,7 @@ export const useSendScreen = () => {
         resolvedAmountSat: amountSat,
         comment: comment || null,
         onchainSource:
-          finalDestinationType === "onchain" ? resolvedOnchainSource ?? undefined : undefined,
+          finalDestinationType === "onchain" ? (resolvedOnchainSource ?? undefined) : undefined,
         btcPrice,
       });
     }

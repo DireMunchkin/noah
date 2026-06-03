@@ -88,13 +88,7 @@ const DetailRow = ({ row }: { row: ExitDetailRow }) => (
   </View>
 );
 
-const TimelineRow = ({
-  item,
-  isLast,
-}: {
-  item: ExitTimelineItem;
-  isLast: boolean;
-}) => {
+const TimelineRow = ({ item, isLast }: { item: ExitTimelineItem; isLast: boolean }) => {
   const tone = stateTone(item.state);
   const heightLabel =
     item.startHeight && item.endHeight && item.startHeight !== item.endHeight
@@ -106,7 +100,12 @@ const TimelineRow = ({
   return (
     <View className="flex-row">
       <View className="w-9 items-center">
-        <View className={cn("h-9 w-9 items-center justify-center rounded-full border", tone.bgClassName)}>
+        <View
+          className={cn(
+            "h-9 w-9 items-center justify-center rounded-full border",
+            tone.bgClassName,
+          )}
+        >
           <Icon name={tone.icon} size={18} color={tone.color} />
         </View>
         {!isLast ? <View className="w-px flex-1 bg-border" /> : null}
@@ -229,7 +228,11 @@ const ExitVtxoDetailScreen = () => {
                     {formatBip177(exit.amount_sat)}
                   </Text>
                   <Text className="mt-2 text-base font-medium text-foreground">
-                    {getExitStatusText({ state, details, currentBlockHeight: overview?.blockHeight })}
+                    {getExitStatusText({
+                      state,
+                      details,
+                      currentBlockHeight: overview?.blockHeight,
+                    })}
                   </Text>
                   <Text className="mt-2 text-sm text-muted-foreground">
                     {truncateMiddle(exit.vtxo_id, 14, 12)}

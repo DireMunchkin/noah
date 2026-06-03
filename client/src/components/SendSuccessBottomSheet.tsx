@@ -31,15 +31,7 @@ const truncateValue = (value: string) => {
   return `${value.slice(0, 14)}...${value.slice(-10)}`;
 };
 
-const CopyRow = ({
-  label,
-  value,
-  copyId,
-}: {
-  label: string;
-  value: string;
-  copyId: string;
-}) => {
+const CopyRow = ({ label, value, copyId }: { label: string; value: string; copyId: string }) => {
   const { copyWithState, isCopied } = useCopyToClipboard(1200);
 
   return (

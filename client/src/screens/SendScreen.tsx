@@ -216,9 +216,7 @@ const SendScreen = () => {
 
                   <Text className="mt-3 text-lg font-medium text-muted-foreground">
                     {parsedAmount
-                      ? `≈ $${
-                          btcPrice ? formatNumber(satsToUsd(parsedAmount, btcPrice)) : "0.00"
-                        }`
+                      ? `≈ $${btcPrice ? formatNumber(satsToUsd(parsedAmount, btcPrice)) : "0.00"}`
                       : currency === "SATS"
                         ? `≈ $${
                             btcPrice && amountSat && !isNaN(amountSat)
@@ -305,11 +303,7 @@ const SendScreen = () => {
                           className="h-8 w-8 items-center justify-center rounded-full"
                           style={{ backgroundColor: `${COLORS.BITCOIN_ORANGE}18` }}
                         >
-                          <Icon
-                            name="flash-outline"
-                            size={15}
-                            color={COLORS.BITCOIN_ORANGE}
-                          />
+                          <Icon name="flash-outline" size={15} color={COLORS.BITCOIN_ORANGE} />
                         </View>
                         <View className="min-w-0 flex-1">
                           <Text

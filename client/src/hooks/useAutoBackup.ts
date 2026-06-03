@@ -4,10 +4,7 @@ import { useBackupStore } from "~/store/backupStore";
 import { useServerStore } from "~/store/serverStore";
 import { useWalletStore } from "~/store/walletStore";
 import { useBackgroundJobCoordination } from "~/hooks/useBackgroundJobCoordination";
-import {
-  AUTO_BACKUP_FRESHNESS_MS,
-  AUTO_BACKUP_IN_PROGRESS_TIMEOUT_MS,
-} from "~/constants";
+import { AUTO_BACKUP_FRESHNESS_MS, AUTO_BACKUP_IN_PROGRESS_TIMEOUT_MS } from "~/constants";
 import logger from "~/lib/log";
 
 const log = logger("useAutoBackup");
@@ -15,8 +12,7 @@ const log = logger("useAutoBackup");
 export const useAutoBackup = (isReady: boolean) => {
   const { safelyExecuteWhenReady } = useBackgroundJobCoordination();
   const { isBackupEnabled } = useServerStore();
-  const { lastBackupAt, lastBackupAttemptAt, lastBackupStatus, setBackupFailed } =
-    useBackupStore();
+  const { lastBackupAt, lastBackupAttemptAt, lastBackupStatus, setBackupFailed } = useBackupStore();
   const { isInitialized, isWalletSuspended } = useWalletStore();
 
   useEffect(() => {

@@ -113,11 +113,7 @@ const ProfileScreen = () => {
   const nameActionIcon =
     isEditingName || saveStatus === "saving" ? "save-outline" : "create-outline";
   const nameActionColor =
-    saveStatus === "error"
-      ? "#ef4444"
-      : isEditingName
-        ? COLORS.BITCOIN_ORANGE
-        : iconColor;
+    saveStatus === "error" ? "#ef4444" : isEditingName ? COLORS.BITCOIN_ORANGE : iconColor;
 
   return (
     <NoahSafeAreaView className="flex-1 bg-background">
@@ -150,8 +146,7 @@ const ProfileScreen = () => {
                 editable={saveStatus !== "saving"}
                 className="h-14 rounded-2xl py-0 pl-4 pr-14"
                 style={{
-                  borderColor:
-                    saveStatus === "error" ? "#ef4444" : `${colors.mutedForeground}24`,
+                  borderColor: saveStatus === "error" ? "#ef4444" : `${colors.mutedForeground}24`,
                   backgroundColor: `${colors.card}CC`,
                   color: colors.foreground,
                 }}
