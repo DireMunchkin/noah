@@ -5,7 +5,6 @@ import { err, ok, Result } from "neverthrow";
 import { BackupService } from "~/lib/backupService";
 import { submitInvoice as submitInvoiceApi } from "./api";
 import { Bolt11Invoice } from "react-native-nitro-ark";
-import { storeLightningReceiveAmount } from "./lightningReceiveAmounts";
 
 const log = logger("tasks");
 
@@ -56,7 +55,6 @@ export async function submitInvoiceTask(
     return err(responseResult.error);
   }
 
-  storeLightningReceiveAmount(invoiceResult.value.payment_hash, sats);
   log.d("[Submit Invoice Job] completed");
 
   return ok(invoiceResult.value);

@@ -18,10 +18,6 @@ import { useWalletStore } from "~/store/walletStore";
 import { formatBip177 } from "./utils";
 import { updateWidget } from "~/hooks/useWidget";
 import { shouldUseUnifiedPush } from "~/constants";
-import {
-  getStoredLightningReceiveAmount,
-  removeStoredLightningReceiveAmount,
-} from "./lightningReceiveAmounts";
 
 const log = logger("pushNotifications");
 
@@ -201,21 +197,15 @@ async function handleNotificationData(notificationData: NotificationData) {
       }
       log.i("Successfully claimed pending lightning receives", [notificationData.payment_hash]);
 
-      const amountSat =
-        notificationData.amount_sat ??
-        (notificationData.payment_hash
-          ? getStoredLightningReceiveAmount(notificationData.payment_hash)
-          : null);
-      const notificationId = await scheduleLightningPaymentNotification(amountSat);
+      const notificationId = await scheduleLightningPaymentNotification(
+        notificationData.amount_sat,
+      );
       log.i("Local notification scheduled for lightning payment", [
         notificationId,
         notificationData.payment_hash,
-        amountSat,
+        notificationData.amount_sat,
       ]);
 
-      if (notificationData.payment_hash) {
-        removeStoredLightningReceiveAmount(notificationData.payment_hash);
-      }
       await updateWidget();
       break;
     }

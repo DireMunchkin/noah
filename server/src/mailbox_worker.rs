@@ -473,12 +473,14 @@ async fn process_mailbox_message(
     match &message.message {
         Some(Message::IncomingLightningPayment(lightning_payment)) if send_notifications => {
             let payment_hash = hex::encode(&lightning_payment.payment_hash);
-            let notification = build_lightning_claim_notification(payment_hash)?;
+            let amount_sat = lightning_payment.amount_msat / 1000;
+            let notification = build_lightning_claim_notification(payment_hash, Some(amount_sat))?;
 
             tracing::info!(
                 service = "mailbox_worker",
                 pubkey = %mailbox.pubkey,
                 checkpoint = message.checkpoint,
+                amount_sat,
                 notification_kind = "lightning_claim_request",
                 silent = true,
                 content_available = true,
@@ -552,11 +554,12 @@ fn should_suppress_catchup_notifications(last_checkpoint: i64) -> bool {
 
 fn build_lightning_claim_notification(
     payment_hash: String,
+    amount_sat: Option<u64>,
 ) -> Result<PushNotificationData, ApiError> {
     let data = serde_json::to_string(&NotificationData::LightningClaimRequest(
         LightningClaimRequestNotification {
             payment_hash: Some(payment_hash),
-            amount_sat: None,
+            amount_sat,
         },
     ))
     .map_err(|e| ApiError::SerializeErr(e.to_string()))?;
@@ -688,9 +691,11 @@ mod tests {
     #[test]
     fn build_lightning_claim_notification_for_incoming_lightning_payment() {
         let payment_hash = "00".repeat(32);
+        let amount_sat = 42_000;
 
-        let notification = build_lightning_claim_notification(payment_hash.clone())
-            .expect("lightning claim notification should build");
+        let notification =
+            build_lightning_claim_notification(payment_hash.clone(), Some(amount_sat))
+                .expect("lightning claim notification should build");
 
         assert_eq!(notification.title, None);
         assert_eq!(notification.body, None);
@@ -703,8 +708,8 @@ mod tests {
             data,
             NotificationData::LightningClaimRequest(LightningClaimRequestNotification {
                 payment_hash: Some(hash),
-                amount_sat: None,
-            }) if hash == payment_hash
+                amount_sat: Some(amount),
+            }) if hash == payment_hash && amount == amount_sat
         ));
     }
 
