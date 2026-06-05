@@ -111,17 +111,39 @@ where
 
         loop {
             while let Some(result) = join_set.try_join_next() {
-                Self::handle_session_result(result, &mut active_pubkeys).await?;
+                if let Err(error) = Self::handle_session_result(result, &mut active_pubkeys).await {
+                    tracing::error!(
+                        service = "mailbox_worker",
+                        error = %error,
+                        "mailbox session join failed"
+                    );
+                }
             }
 
-            let _ = self
+            if let Err(error) = self
                 .schedule_runnable_sessions(&mut join_set, &mut active_pubkeys)
-                .await?;
+                .await
+            {
+                tracing::error!(
+                    service = "mailbox_worker",
+                    error = %error,
+                    retry_delay_secs = self.config.base_retry_delay.as_secs(),
+                    "mailbox scheduler failed; retrying"
+                );
+                sleep(self.config.base_retry_delay).await;
+                continue;
+            }
 
             tokio::select! {
                 result = join_set.join_next(), if !join_set.is_empty() => {
                     if let Some(result) = result {
-                        Self::handle_session_result(result, &mut active_pubkeys).await?;
+                        if let Err(error) = Self::handle_session_result(result, &mut active_pubkeys).await {
+                            tracing::error!(
+                                service = "mailbox_worker",
+                                error = %error,
+                                "mailbox session join failed"
+                            );
+                        }
                     }
                 }
                 _ = sleep(self.config.scan_interval) => {}
