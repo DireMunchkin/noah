@@ -5,7 +5,7 @@ import type { HomeStackParamList, TabParamList } from "../Navigators";
 import { Text } from "../components/ui/text";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
-import { AlertCircle, ChevronDown } from "lucide-react-native";
+import { AlertCircle, ChevronDown, Eye, EyeOff, PauseCircle } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { COLORS } from "../lib/styleConstants";
 import { useIconColor } from "../hooks/useTheme";
@@ -32,7 +32,6 @@ import { NoahSafeAreaView } from "~/components/NoahSafeAreaView";
 import { useBottomTabBarHeight } from "react-native-bottom-tabs";
 import { useBtcToUsdRate } from "~/hooks/useMarketData";
 import { useWalletStore } from "~/store/walletStore";
-import { PauseCircle } from "lucide-react-native";
 import { updateWidget, useWidget } from "~/hooks/useWidget";
 import { formatBip177 } from "~/lib/utils";
 import { calculateBalances } from "~/lib/balanceUtils";
@@ -41,6 +40,7 @@ import { useTransactions } from "~/hooks/useTransactions";
 import { Transaction } from "~/types/transaction";
 import { AppBottomSheet } from "~/components/ui/AppBottomSheet";
 import { TransactionDetailContent } from "~/screens/TransactionDetailScreen";
+import { usePrivacyStore } from "~/store/privacyStore";
 
 const getTransactionIcon = (type: Transaction["type"]) => {
   switch (type) {
@@ -86,6 +86,8 @@ const HomeScreen = () => {
   const { isUpdateRequired, minimumVersion, currentVersion } = useAppVersionCheck();
   const { isEmailVerified, isEmailPromptDismissed, setEmailPromptDismissed } = useServerStore();
   const { data: transactions = [], isLoading: isTransactionsLoading } = useTransactions();
+  const isHomeBalanceHidden = usePrivacyStore((state) => state.isHomeBalanceHidden);
+  const toggleHomeBalanceHidden = usePrivacyStore((state) => state.toggleHomeBalanceHidden);
   const recentTransactions = transactions.slice(0, 3);
 
   const handleEmailVerificationPress = useCallback(() => {
@@ -129,6 +131,9 @@ const HomeScreen = () => {
   const totalPendingBalance = balances?.pendingBalance ?? 0;
   const totalBalanceInUsd = btcToUsdRate ? (totalBalance / 100_000_000) * btcToUsdRate : 0;
   const errorMessage = error instanceof Error ? error.message : String(error);
+  const maskedBalance = "••••";
+  const formatHomeBalance = (amount: number) =>
+    isHomeBalanceHidden ? maskedBalance : formatBip177(amount);
 
   useWidget(balances);
 
@@ -264,38 +269,62 @@ const HomeScreen = () => {
           ) : (
             <>
               <Collapsible open={isOpen} onOpenChange={setIsOpen} className="items-center pb-10">
-                <CollapsibleTrigger asChild>
-                  <Pressable>
-                    <View className="items-center">
-                      {btcToUsdRate ? (
-                        <Text className="text-2xl text-muted-foreground mb-2">
-                          $
-                          {totalBalanceInUsd.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </Text>
-                      ) : (
-                        <View className="h-[32px] mb-2 justify-center">
-                          <NoahActivityIndicator />
-                        </View>
-                      )}
-                      <View className="flex-row items-center space-x-2">
-                        <Text className="text-4xl font-bold">{formatBip177(totalBalance)}</Text>
-                        <Animated.View style={animatedRotation}>
-                          <ChevronDown color={iconColor} size={28} />
-                        </Animated.View>
-                      </View>
-                      {totalPendingBalance > 0 && (
-                        <View className="mt-2 px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/40">
-                          <Text className="text-yellow-500 text-sm">
-                            Pending balance: {formatBip177(totalPendingBalance)}
-                          </Text>
-                        </View>
-                      )}
+                <View className="items-center">
+                  {isHomeBalanceHidden ? (
+                    <Text className="mb-2 text-2xl text-muted-foreground">$ {maskedBalance}</Text>
+                  ) : btcToUsdRate ? (
+                    <Text className="mb-2 text-2xl text-muted-foreground">
+                      $
+                      {totalBalanceInUsd.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </Text>
+                  ) : (
+                    <View className="h-[32px] mb-2 justify-center">
+                      <NoahActivityIndicator />
                     </View>
-                  </Pressable>
-                </CollapsibleTrigger>
+                  )}
+                  <View className="relative flex-row items-center justify-center">
+                    <CollapsibleTrigger asChild>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Toggle balance details"
+                      >
+                        <View className="flex-row items-center space-x-2">
+                          <Text className="text-4xl font-bold">
+                            {formatHomeBalance(totalBalance)}
+                          </Text>
+                          <Animated.View style={animatedRotation}>
+                            <ChevronDown color={iconColor} size={28} />
+                          </Animated.View>
+                        </View>
+                      </Pressable>
+                    </CollapsibleTrigger>
+                    <Pressable
+                      onPress={toggleHomeBalanceHidden}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        isHomeBalanceHidden ? "Show wallet balance" : "Hide wallet balance"
+                      }
+                      hitSlop={12}
+                      className="absolute -right-9 h-8 w-8 items-center justify-center"
+                    >
+                      {isHomeBalanceHidden ? (
+                        <Eye color={iconColor} size={18} />
+                      ) : (
+                        <EyeOff color={iconColor} size={18} />
+                      )}
+                    </Pressable>
+                  </View>
+                  {totalPendingBalance > 0 && (
+                    <View className="mt-2 px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/40">
+                      <Text className="text-yellow-500 text-sm">
+                        Pending balance: {formatHomeBalance(totalPendingBalance)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <CollapsibleContent>
                   <Animated.View entering={FadeInDown} exiting={FadeOutDown}>
                     <View className="p-4 rounded-lg bg-card mt-4 min-w-[300px]">
@@ -304,24 +333,28 @@ const HomeScreen = () => {
                       <View className="mb-4">
                         <View className="flex-row justify-between items-center mb-2">
                           <Text className="text-md font-bold">Onchain</Text>
-                          <Text className="text-md font-bold">{formatBip177(onchainBalance)}</Text>
+                          <Text className="text-md font-bold">
+                            {formatHomeBalance(onchainBalance)}
+                          </Text>
                         </View>
                         <View className="pl-4 space-y-1">
                           <View className="flex-row justify-between">
                             <Text className="text-muted-foreground">Confirmed</Text>
-                            <Text>{formatBip177(balance?.onchain.confirmed ?? 0)}</Text>
+                            <Text>{formatHomeBalance(balance?.onchain.confirmed ?? 0)}</Text>
                           </View>
                           <View className="flex-row justify-between">
                             <Text className="text-muted-foreground">Trusted Pending</Text>
-                            <Text>{formatBip177(balance?.onchain.trusted_pending ?? 0)}</Text>
+                            <Text>{formatHomeBalance(balance?.onchain.trusted_pending ?? 0)}</Text>
                           </View>
                           <View className="flex-row justify-between">
                             <Text className="text-muted-foreground">Untrusted Pending</Text>
-                            <Text>{formatBip177(balance?.onchain.untrusted_pending ?? 0)}</Text>
+                            <Text>
+                              {formatHomeBalance(balance?.onchain.untrusted_pending ?? 0)}
+                            </Text>
                           </View>
                           <View className="flex-row justify-between">
                             <Text className="text-muted-foreground">Immature</Text>
-                            <Text>{formatBip177(balance?.onchain.immature ?? 0)}</Text>
+                            <Text>{formatHomeBalance(balance?.onchain.immature ?? 0)}</Text>
                           </View>
                         </View>
                       </View>
@@ -329,30 +362,34 @@ const HomeScreen = () => {
                       <View>
                         <View className="flex-row justify-between items-center mb-2">
                           <Text className="text-md font-bold">Offchain</Text>
-                          <Text className="text-md font-bold">{formatBip177(offchainBalance)}</Text>
+                          <Text className="text-md font-bold">
+                            {formatHomeBalance(offchainBalance)}
+                          </Text>
                         </View>
                         <View className="pl-4 space-y-1">
                           <View className="flex-row justify-between">
                             <Text className="text-muted-foreground">Spendable</Text>
-                            <Text>{formatBip177(balance?.offchain.spendable ?? 0)}</Text>
+                            <Text>{formatHomeBalance(balance?.offchain.spendable ?? 0)}</Text>
                           </View>
                           <View className="flex-row justify-between">
                             <Text className="text-muted-foreground">Pending Send</Text>
                             <Text>
-                              {formatBip177(balance?.offchain.pending_lightning_send ?? 0)}
+                              {formatHomeBalance(balance?.offchain.pending_lightning_send ?? 0)}
                             </Text>
                           </View>
                           <View className="flex-row justify-between mb-2">
                             <Text className="text-muted-foreground">Pending In Round</Text>
-                            <Text>{formatBip177(balance?.offchain.pending_in_round ?? 0)}</Text>
+                            <Text>
+                              {formatHomeBalance(balance?.offchain.pending_in_round ?? 0)}
+                            </Text>
                           </View>
                           <View className="flex-row justify-between">
                             <Text className="text-muted-foreground">Pending Exit</Text>
-                            <Text>{formatBip177(balance?.offchain.pending_exit ?? 0)}</Text>
+                            <Text>{formatHomeBalance(balance?.offchain.pending_exit ?? 0)}</Text>
                           </View>
                           <View className="flex-row justify-between">
                             <Text className="text-muted-foreground">Pending Board</Text>
-                            <Text>{formatBip177(balance?.offchain.pending_board ?? 0)}</Text>
+                            <Text>{formatHomeBalance(balance?.offchain.pending_board ?? 0)}</Text>
                           </View>
                         </View>
                       </View>
