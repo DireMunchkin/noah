@@ -22,7 +22,9 @@ async fn main() -> Result<()> {
 
     let app_state = build_app_state(config).await?;
     let transport = Arc::new(Beta8MailboxTransport);
-    let worker = MailboxWorker::new(app_state, transport, MailboxWorkerConfig::default());
+    let mailbox_worker_config = MailboxWorkerConfig::from_env();
+    mailbox_worker_config.log();
+    let worker = MailboxWorker::new(app_state, transport, mailbox_worker_config);
 
     worker.run().await
 }

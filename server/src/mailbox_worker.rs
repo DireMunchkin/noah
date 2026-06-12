@@ -44,7 +44,7 @@ pub struct MailboxWorkerConfig {
 impl Default for MailboxWorkerConfig {
     fn default() -> Self {
         Self {
-            concurrency_limit: 50,
+            concurrency_limit: 250,
             scan_interval: Duration::from_secs(15),
             batch_size: 100,
             base_retry_delay: Duration::from_secs(5),
@@ -54,6 +54,77 @@ impl Default for MailboxWorkerConfig {
             stream_idle_reconnect: Duration::from_secs(60),
         }
     }
+}
+
+impl MailboxWorkerConfig {
+    pub fn from_env() -> Self {
+        let default = Self::default();
+        Self {
+            concurrency_limit: env_usize(
+                "MAILBOX_WORKER_CONCURRENCY_LIMIT",
+                default.concurrency_limit,
+            ),
+            scan_interval: env_duration_secs(
+                "MAILBOX_WORKER_SCAN_INTERVAL_SECS",
+                default.scan_interval,
+            ),
+            batch_size: env_i64("MAILBOX_WORKER_BATCH_SIZE", default.batch_size),
+            base_retry_delay: env_duration_secs(
+                "MAILBOX_WORKER_BASE_RETRY_DELAY_SECS",
+                default.base_retry_delay,
+            ),
+            max_retry_delay: env_duration_secs(
+                "MAILBOX_WORKER_MAX_RETRY_DELAY_SECS",
+                default.max_retry_delay,
+            ),
+            claim_ttl: env_duration_secs("MAILBOX_WORKER_CLAIM_TTL_SECS", default.claim_ttl),
+            claim_renew_interval: env_duration_secs(
+                "MAILBOX_WORKER_CLAIM_RENEW_INTERVAL_SECS",
+                default.claim_renew_interval,
+            ),
+            stream_idle_reconnect: env_duration_secs(
+                "MAILBOX_WORKER_STREAM_IDLE_RECONNECT_SECS",
+                default.stream_idle_reconnect,
+            ),
+        }
+    }
+
+    pub fn log(&self) {
+        tracing::info!(
+            service = "mailbox_worker",
+            concurrency_limit = self.concurrency_limit,
+            scan_interval_secs = self.scan_interval.as_secs(),
+            batch_size = self.batch_size,
+            base_retry_delay_secs = self.base_retry_delay.as_secs(),
+            max_retry_delay_secs = self.max_retry_delay.as_secs(),
+            claim_ttl_secs = self.claim_ttl.as_secs(),
+            claim_renew_interval_secs = self.claim_renew_interval.as_secs(),
+            stream_idle_reconnect_secs = self.stream_idle_reconnect.as_secs(),
+            "mailbox worker config loaded"
+        );
+    }
+}
+
+fn env_usize(key: &str, default: usize) -> usize {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+}
+
+fn env_i64(key: &str, default: i64) -> i64 {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+}
+
+fn env_duration_secs(key: &str, default: Duration) -> Duration {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(default)
 }
 
 #[derive(Debug, Clone)]
@@ -436,7 +507,7 @@ impl MailboxTransport for Beta8MailboxTransport {
                 Err(status) => return Ok(map_tonic_status(status)),
             };
 
-            tracing::info!(
+            tracing::trace!(
                 service = "mailbox_worker",
                 pubkey = %mailbox.pubkey,
                 checkpoint,
@@ -459,7 +530,7 @@ impl MailboxTransport for Beta8MailboxTransport {
                         }
                     }
                     _ = &mut idle_reconnect => {
-                        tracing::debug!(
+                        tracing::trace!(
                             service = "mailbox_worker",
                             pubkey = %mailbox.pubkey,
                             checkpoint,

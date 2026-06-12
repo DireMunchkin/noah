@@ -211,10 +211,13 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
     if run_mailbox_worker {
         let mailbox_worker_app_state = app_state.clone();
         tokio::spawn(async move {
+            let mailbox_worker_config = MailboxWorkerConfig::from_env();
+            mailbox_worker_config.log();
+
             let worker = MailboxWorker::new(
                 mailbox_worker_app_state,
                 Arc::new(Beta8MailboxTransport),
-                MailboxWorkerConfig::default(),
+                mailbox_worker_config,
             );
 
             if let Err(e) = worker.run().await {

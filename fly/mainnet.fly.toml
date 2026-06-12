@@ -16,6 +16,9 @@ primary_region = "iad"
 [env]
   LNURL_DOMAIN = "noahwallet.io"
   SERVER_NETWORK = "bitcoin"
+  MAILBOX_WORKER_CONCURRENCY_LIMIT = "300"
+  POSTGRES_MAX_CONNECTIONS = "20"
+  REDIS_POOL_SIZE = "64"
 
 [http_service]
   internal_port = 3000

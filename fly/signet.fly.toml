@@ -13,6 +13,11 @@ primary_region = 'iad'
   strategy = "bluegreen"
   wait_timeout = "10m"
 
+[env]
+  MAILBOX_WORKER_CONCURRENCY_LIMIT = "300"
+  POSTGRES_MAX_CONNECTIONS = "20"
+  REDIS_POOL_SIZE = "64"
+
 [http_service]
   internal_port = 3000
   force_https = true
