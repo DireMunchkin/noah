@@ -142,10 +142,14 @@ const ProfileScreen = () => {
     requestAnimationFrame(() => nameInputRef.current?.focus());
   };
 
-  const nameActionIcon =
-    isEditingName || saveStatus === "saving" ? "save-outline" : "create-outline";
+  const isNameInputEditable = isEditingName && saveStatus !== "saving";
+  const nameActionLabel = isEditingName ? "Save" : "Edit";
   const nameActionColor =
-    saveStatus === "error" ? "#ef4444" : isEditingName ? COLORS.BITCOIN_ORANGE : iconColor;
+    saveStatus === "error"
+      ? "#ef4444"
+      : saveStatus === "saving"
+        ? colors.mutedForeground
+        : COLORS.BITCOIN_ORANGE;
 
   return (
     <NoahSafeAreaView className="flex-1 bg-background">
@@ -175,22 +179,25 @@ const ProfileScreen = () => {
                   setSaveStatus("idle");
                 }}
                 placeholder="Add a display name"
-                editable={saveStatus !== "saving"}
-                className="h-14 rounded-2xl py-0 pl-4 pr-14"
+                editable={isNameInputEditable}
+                className="h-14 rounded-2xl py-0 pl-4 pr-24"
                 style={{
-                  borderColor: saveStatus === "error" ? "#ef4444" : `${colors.mutedForeground}24`,
-                  backgroundColor: `${colors.card}CC`,
-                  color: colors.foreground,
+                  borderColor:
+                    saveStatus === "error"
+                      ? "#ef4444"
+                      : isEditingName
+                        ? COLORS.BITCOIN_ORANGE
+                        : `${colors.mutedForeground}24`,
+                  borderStyle: isEditingName ? "solid" : "dashed",
+                  backgroundColor: isEditingName
+                    ? `${colors.card}CC`
+                    : `${colors.mutedForeground}10`,
+                  color: isEditingName ? colors.foreground : colors.mutedForeground,
                 }}
                 maxLength={80}
                 autoCapitalize="words"
                 autoCorrect={false}
                 returnKeyType="done"
-                onFocus={() => {
-                  if (!isEditingName) {
-                    nameInputRef.current?.blur();
-                  }
-                }}
                 onSubmitEditing={() => {
                   if (isEditingName) {
                     void saveDisplayName();
@@ -201,9 +208,12 @@ const ProfileScreen = () => {
                 onPress={handleNameAction}
                 disabled={saveStatus === "saving"}
                 accessibilityLabel={isEditingName ? "Save name" : "Edit name"}
-                className="absolute right-2 top-2 h-10 w-10 items-center justify-center rounded-full"
+                className="absolute right-2 top-2 h-10 min-w-16 items-center justify-center rounded-full px-3"
+                style={{ backgroundColor: `${nameActionColor}18` }}
               >
-                <Icon name={nameActionIcon} size={22} color={nameActionColor} />
+                <Text className="text-sm font-semibold" style={{ color: nameActionColor }}>
+                  {nameActionLabel}
+                </Text>
               </Pressable>
             </View>
           </View>

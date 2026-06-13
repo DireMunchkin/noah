@@ -57,6 +57,8 @@ const RestoreWalletScreen = ({ navigation }: Props) => {
                 placeholderTextColor="#666"
                 value={mnemonic}
                 onChangeText={setMnemonic}
+                autoCapitalize="none"
+                autoCorrect={false}
                 multiline
                 returnKeyType="done"
                 onSubmitEditing={dismissKeyboard}
