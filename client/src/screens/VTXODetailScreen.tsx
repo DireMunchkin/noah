@@ -222,7 +222,7 @@ const VTXODetailScreen = () => {
 
           <View className="bg-card p-4 rounded-lg mb-4">
             <Text className="text-foreground text-lg font-semibold mb-3">Vtxo Details</Text>
-            <VTXODetailRow label="Point" value={vtxo.point} copyable />
+            <VTXODetailRow label="ID" value={vtxo.id} copyable />
             <VTXODetailRow
               label="Anchor Point"
               value={vtxo.anchor_point}

@@ -16,6 +16,7 @@ import {
   maintenanceRefresh,
   maintenanceDelegated,
   maintenanceWithOnchainDelegated,
+  dropVtxo,
 } from "~/lib/walletApi";
 import { offboardAllArk } from "~/lib/paymentsApi";
 import { registerForPushNotificationsAsync } from "~/lib/pushNotifications";
@@ -23,6 +24,7 @@ import { useAlert } from "~/contexts/AlertProvider";
 import logger from "~/lib/log";
 import { NoahButton } from "~/components/ui/NoahButton";
 import { copyToClipboard } from "~/lib/clipboardUtils";
+import { ConfirmationDialog } from "~/components/ConfirmationDialog";
 import {
   Select,
   SelectContent,
@@ -42,6 +44,7 @@ type DebugAction =
   | "maintenanceRefresh"
   | "maintenanceDelegated"
   | "maintenanceWithOnchainDelegated"
+  | "dropVtxo"
   | "offboardAll";
 
 interface ActionOption {
@@ -95,6 +98,13 @@ const DEBUG_ACTIONS: ActionOption[] = [
     requiresInput: true,
     inputPlaceholder: "Enter Bitcoin address",
   },
+  {
+    id: "dropVtxo",
+    title: "Drop VTXO",
+    description: "Dangerously remove a VTXO from the local wallet database",
+    requiresInput: true,
+    inputPlaceholder: "Enter VTXO ID",
+  },
 ];
 
 const DebugScreen = () => {
@@ -104,6 +114,8 @@ const DebugScreen = () => {
   const [selectedOption, setSelectedOption] = useState<Option | undefined>(undefined);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isDropDialogOpen, setIsDropDialogOpen] = useState(false);
+  const [dropConfirmText, setDropConfirmText] = useState("");
   const [resultState, setResultState] = useState<{
     kind: "success" | "error";
     message: string;
@@ -209,6 +221,15 @@ const DebugScreen = () => {
             : String(result.value);
         return { success: true, message: `Offboard completed.\n\nRound status:\n${statusStr}` };
       }
+      case "dropVtxo": {
+        const vtxoId = input.trim();
+        log.w("Executing dangerous VTXO drop", [{ vtxoId }]);
+        const result = await dropVtxo(vtxoId);
+        if (result.isErr()) {
+          return { success: false, error: result.error.message };
+        }
+        return { success: true, message: `Dropped VTXO ${vtxoId}` };
+      }
     }
   };
 
@@ -220,6 +241,12 @@ const DebugScreen = () => {
 
     if (selectedActionConfig?.requiresInput && !inputValue.trim()) {
       showAlert({ title: "Error", description: "Please enter the required input" });
+      return;
+    }
+
+    if (selectedAction === "dropVtxo") {
+      setDropConfirmText("");
+      setIsDropDialogOpen(true);
       return;
     }
 
@@ -242,11 +269,36 @@ const DebugScreen = () => {
     }
   };
 
+  const handleConfirmedDropVtxo = async () => {
+    if (dropConfirmText.toLowerCase() !== "delete") {
+      return;
+    }
+
+    setIsDropDialogOpen(false);
+    setIsLoading(true);
+    setResultState(null);
+
+    const result = await executeAction("dropVtxo", inputValue);
+
+    setIsLoading(false);
+    setDropConfirmText("");
+
+    if (result.success) {
+      setResultState({ kind: "success", message: result.message });
+      setInputValue("");
+    } else {
+      log.e("Debug action failed:", [result.error]);
+      setResultState({ kind: "error", message: result.error });
+      showAlert({ title: "Action Failed", description: result.error });
+    }
+  };
+
   const handleSelectChange = (option: Option | undefined) => {
     setSelectedOption(option);
     setResultState(null);
     setInputValue("");
     setCopied(false);
+    setDropConfirmText("");
   };
 
   const handleCopyResult = async () => {
@@ -340,6 +392,27 @@ const DebugScreen = () => {
         >
           {isLoading ? "Executing..." : "Execute Action"}
         </NoahButton>
+
+        <ConfirmationDialog
+          open={isDropDialogOpen}
+          onOpenChange={setIsDropDialogOpen}
+          title="Drop VTXO"
+          description={`This action is irreversible and can cause loss of funds. To confirm, please type "delete" in the box below.`}
+          onConfirm={() => {
+            void handleConfirmedDropVtxo();
+          }}
+          onCancel={() => setDropConfirmText("")}
+          isConfirmDisabled={dropConfirmText.toLowerCase() !== "delete" || isLoading}
+        >
+          <Input
+            value={dropConfirmText}
+            onChangeText={setDropConfirmText}
+            placeholder='Type "delete" to confirm'
+            className="h-12"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </ConfirmationDialog>
       </ScrollView>
     </NoahSafeAreaView>
   );

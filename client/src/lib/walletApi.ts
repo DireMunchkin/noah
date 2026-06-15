@@ -21,6 +21,7 @@ import {
   signMesssageWithMnemonic as signMessageWithMnemonicNitro,
   deriveKeypairFromMnemonic as deriveKeypairFromMnemonicNitro,
   vtxos as vtxosNitro,
+  dangerousDropVtxo as dangerousDropVtxoNitro,
   getExpiringVtxos as getExpiringVtxosNitro,
   type BarkArkInfo,
   type OnchainBalanceResult,
@@ -341,6 +342,10 @@ export const deleteWallet = async (): Promise<Result<void, Error>> => {
 
 export const getVtxos = async () => {
   return ResultAsync.fromPromise(vtxosNitro(), (e) => e as Error);
+};
+
+export const dropVtxo = async (vtxoId: string): Promise<Result<void, Error>> => {
+  return ResultAsync.fromPromise(dangerousDropVtxoNitro(vtxoId), (e) => e as Error);
 };
 
 export const getExpiringVtxos = async () => {

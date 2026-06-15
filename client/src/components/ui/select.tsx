@@ -1,6 +1,6 @@
 import * as SelectPrimitive from "@rn-primitives/select";
 import * as React from "react";
-import { Platform, StyleSheet, View, Text } from "react-native";
+import { Platform, ScrollView, StyleSheet, View, Text, useWindowDimensions } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Check } from "~/lib/icons/Check";
 import { ChevronDown } from "~/lib/icons/ChevronDown";
@@ -79,13 +79,37 @@ function SelectContent({
   children,
   position = "popper",
   portalHost,
+  style,
   ...props
 }: SelectPrimitive.ContentProps & {
   ref?: React.RefObject<SelectPrimitive.ContentRef>;
   className?: string;
   portalHost?: string;
 }) {
-  const { open } = SelectPrimitive.useRootContext();
+  const { open, triggerPosition } = SelectPrimitive.useRootContext();
+  const { height: windowHeight } = useWindowDimensions();
+  const nativeMaxHeight =
+    Platform.OS === "web" || !triggerPosition
+      ? undefined
+      : Math.max(
+          160,
+          Math.min(384, windowHeight - triggerPosition.pageY - triggerPosition.height - 32),
+        );
+  const viewportClassName = cn(
+    "p-1",
+    position === "popper" &&
+      "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+  );
+  const contentStyle =
+    Platform.OS === "web"
+      ? style
+      : StyleSheet.flatten([
+          {
+            maxHeight: nativeMaxHeight,
+            width: triggerPosition?.width,
+          },
+          style,
+        ]);
 
   return (
     <SelectPrimitive.Portal hostName={portalHost}>
@@ -93,7 +117,7 @@ function SelectContent({
         <Animated.View className="z-50" entering={FadeIn} exiting={FadeOut}>
           <SelectPrimitive.Content
             className={cn(
-              "relative z-50 max-h-96 min-w-[8rem] rounded-md border border-border bg-popover shadow-md shadow-foreground/10 py-2 px-1 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+              "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover shadow-md shadow-foreground/10 py-2 px-1 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
               position === "popper" &&
                 "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
               open
@@ -102,18 +126,24 @@ function SelectContent({
               className,
             )}
             position={position}
+            style={contentStyle}
             {...props}
           >
             <SelectScrollUpButton />
-            <SelectPrimitive.Viewport
-              className={cn(
-                "p-1",
-                position === "popper" &&
-                  "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
-              )}
-            >
-              {children}
-            </SelectPrimitive.Viewport>
+            {Platform.OS === "web" ? (
+              <SelectPrimitive.Viewport className={viewportClassName}>
+                {children}
+              </SelectPrimitive.Viewport>
+            ) : (
+              <ScrollView
+                style={{ maxHeight: nativeMaxHeight }}
+                contentContainerStyle={{ padding: 4 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <SelectPrimitive.Viewport>{children}</SelectPrimitive.Viewport>
+              </ScrollView>
+            )}
             <SelectScrollDownButton />
           </SelectPrimitive.Content>
         </Animated.View>
@@ -152,7 +182,7 @@ function SelectItem({
   return (
     <SelectPrimitive.Item
       className={cn(
-        "relative web:group flex flex-row w-full web:cursor-default web:select-none items-center rounded-sm py-1.5 native:py-2 pl-8 native:pl-10 pr-2 web:hover:bg-accent/50 active:bg-accent web:outline-none web:focus:bg-accent",
+        "relative web:group flex flex-row w-full min-w-0 web:cursor-default web:select-none items-center rounded-sm py-1.5 native:py-2 pl-8 native:pl-10 pr-2 web:hover:bg-accent/50 active:bg-accent web:outline-none web:focus:bg-accent",
         props.disabled && "web:pointer-events-none opacity-50",
         className,
       )}
@@ -164,9 +194,16 @@ function SelectItem({
         </SelectPrimitive.ItemIndicator>
       </View>
       {icon}
-      <View>
-        <SelectPrimitive.ItemText className="text-sm native:text-lg text-popover-foreground web:group-focus:text-accent-foreground" />
-        {description && <Text className="text-xs text-muted-foreground">{description}</Text>}
+      <View className="flex-1 min-w-0">
+        <SelectPrimitive.ItemText
+          numberOfLines={1}
+          className="text-sm native:text-lg text-popover-foreground web:group-focus:text-accent-foreground"
+        />
+        {description && (
+          <Text numberOfLines={2} className="text-xs text-muted-foreground">
+            {description}
+          </Text>
+        )}
       </View>
     </SelectPrimitive.Item>
   );
