@@ -25,14 +25,6 @@ import logger from "~/lib/log";
 import { NoahButton } from "~/components/ui/NoahButton";
 import { copyToClipboard } from "~/lib/clipboardUtils";
 import { ConfirmationDialog } from "~/components/ConfirmationDialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  type Option,
-} from "~/components/ui/select";
 
 const log = logger("DebugScreen");
 
@@ -111,7 +103,8 @@ const DebugScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
   const iconColor = useIconColor();
   const { showAlert } = useAlert();
-  const [selectedOption, setSelectedOption] = useState<Option | undefined>(undefined);
+  const [selectedAction, setSelectedAction] = useState<DebugAction | null>(null);
+  const [isActionListOpen, setIsActionListOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDropDialogOpen, setIsDropDialogOpen] = useState(false);
@@ -122,7 +115,6 @@ const DebugScreen = () => {
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const selectedAction = selectedOption?.value as DebugAction | undefined;
   const selectedActionConfig = DEBUG_ACTIONS.find((a) => a.id === selectedAction);
 
   type ActionResult = { success: true; message: string } | { success: false; error: string };
@@ -293,8 +285,9 @@ const DebugScreen = () => {
     }
   };
 
-  const handleSelectChange = (option: Option | undefined) => {
-    setSelectedOption(option);
+  const handleSelectAction = (action: DebugAction) => {
+    setSelectedAction(action);
+    setIsActionListOpen(false);
     setResultState(null);
     setInputValue("");
     setCopied(false);
@@ -321,28 +314,74 @@ const DebugScreen = () => {
         <Text className="text-2xl font-bold text-foreground">Debug</Text>
       </View>
 
-      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1 px-4"
+        showsVerticalScrollIndicator
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
         <View className="mb-6 mt-6">
           <Label className="text-foreground text-2xl mb-2">Select Action</Label>
 
-          <Select value={selectedOption} onValueChange={handleSelectChange}>
-            <SelectTrigger className="w-full">
-              <SelectValue
-                className="text-foreground text-sm native:text-lg"
-                placeholder="Choose an action..."
-              />
-            </SelectTrigger>
-            <SelectContent className="w-full">
-              {DEBUG_ACTIONS.map((action) => (
-                <SelectItem
-                  key={action.id}
-                  label={action.title}
-                  value={action.id}
-                  description={action.description}
-                />
-              ))}
-            </SelectContent>
-          </Select>
+          <Pressable
+            onPress={() => setIsActionListOpen((open) => !open)}
+            className="h-12 flex-row items-center justify-between rounded-md border border-input bg-background px-3"
+          >
+            <Text
+              className={
+                selectedActionConfig ? "text-foreground text-lg" : "text-muted-foreground text-lg"
+              }
+              numberOfLines={1}
+            >
+              {selectedActionConfig?.title ?? "Choose an action..."}
+            </Text>
+            <Icon
+              name={isActionListOpen ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={iconColor}
+            />
+          </Pressable>
+
+          {isActionListOpen && (
+            <View className="mt-2 overflow-hidden rounded-md border border-border bg-popover">
+              {DEBUG_ACTIONS.map((action, index) => {
+                const isSelected = action.id === selectedAction;
+                const isDangerousAction = action.id === "dropVtxo";
+                return (
+                  <Pressable
+                    key={action.id}
+                    onPress={() => handleSelectAction(action.id)}
+                    className={`px-4 py-3 ${
+                      index < DEBUG_ACTIONS.length - 1 ? "border-b border-border/60" : ""
+                    } ${
+                      isDangerousAction
+                        ? "bg-red-50 dark:bg-red-950/30"
+                        : isSelected
+                          ? "bg-accent/40"
+                          : ""
+                    }`}
+                  >
+                    <View className="flex-row items-start gap-3">
+                      <View className="w-5 items-center pt-1">
+                        {isSelected ? <Icon name="checkmark" size={18} color={iconColor} /> : null}
+                      </View>
+                      <View className="min-w-0 flex-1">
+                        <Text
+                          className={`text-lg font-semibold ${
+                            isDangerousAction ? "text-red-700 dark:text-red-300" : "text-foreground"
+                          }`}
+                        >
+                          {action.title}
+                        </Text>
+                        <Text className="text-muted-foreground mt-1 text-sm">
+                          {action.description}
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {selectedActionConfig?.requiresInput && (
