@@ -261,14 +261,6 @@ setup_everything() {
     send_to_address "$bark_address" "0.1"
 
     echo ""
-    echo "⛏️  Generating 6 blocks..."
-    generate_blocks 6
-
-    echo ""
-    echo "⏳ Waiting 5 seconds before boarding onto Ark..."
-    sleep 5
-
-    echo ""
     echo "🚢 Boarding onto Ark with 1000000 sats..."
     dcr run --rm "$BARK_SERVICE" bark board '1000000 sats'
 
