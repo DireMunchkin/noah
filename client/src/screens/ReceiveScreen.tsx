@@ -40,10 +40,7 @@ import logger from "~/lib/log";
 import type { Bolt11Invoice } from "react-native-nitro-ark";
 import { queryClient } from "~/queryClient";
 import { BlinkingCaret } from "~/components/BlinkingCaret";
-import {
-  useBitcoinAmountFormatter,
-  useBitcoinAmountUnit,
-} from "~/hooks/useBitcoinAmountFormatter";
+import { useBitcoinAmountFormatter, useBitcoinAmountUnit } from "~/hooks/useBitcoinAmountFormatter";
 
 const minAmount = 1;
 const SUBSCRIPTION_RETRY_DELAY_MS = 1000;
@@ -158,11 +155,7 @@ const PaymentRail = ({
   const isCopyable = Boolean(onCopy);
 
   return (
-    <Pressable
-      onPress={onCopy}
-      disabled={!isCopyable}
-      className="flex-row items-center gap-4 py-4"
-    >
+    <Pressable onPress={onCopy} disabled={!isCopyable} className="flex-row items-center gap-4 py-4">
       <View
         className="h-11 w-11 items-center justify-center rounded-full border border-border"
         style={{ backgroundColor: "rgba(201, 138, 60, 0.10)" }}
@@ -189,7 +182,7 @@ const PaymentRail = ({
               : COLORS.TAB_BAR_INACTIVE,
         }}
       >
-        {isCopied ? "Copied" : actionLabel ?? (isCopyable ? "Copy" : "")}
+        {isCopied ? "Copied" : (actionLabel ?? (isCopyable ? "Copy" : ""))}
       </Text>
     </Pressable>
   );
@@ -902,11 +895,7 @@ const ReceiveScreen = () => {
                   style={{ backgroundColor: COLORS.BITCOIN_ORANGE }}
                 >
                   <Text className="font-bold" style={{ color: "#1a1a1a" }}>
-                    {isLoading
-                      ? "Generating..."
-                      : isGenerated
-                        ? "New request"
-                        : "Generate request"}
+                    {isLoading ? "Generating..." : isGenerated ? "New request" : "Generate request"}
                   </Text>
                 </Button>
               </View>

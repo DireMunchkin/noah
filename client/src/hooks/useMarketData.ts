@@ -16,7 +16,10 @@ type HistoricalRateLookup = {
   rate: number;
   cacheable: boolean;
 };
-const historicalBtcToFiatRateCache = new Map<string, Promise<Result<HistoricalRateLookup, Error>>>();
+const historicalBtcToFiatRateCache = new Map<
+  string,
+  Promise<Result<HistoricalRateLookup, Error>>
+>();
 
 export const getBtcToFiatRate = (currency: FiatCurrencyCode): ResultAsync<number, Error> => {
   return ResultAsync.fromSafePromise(getFiatPrices()).andThen((result) => {
@@ -129,10 +132,7 @@ const fetchHistoricalBtcToFiatRate = async (
   currency: FiatCurrencyCode,
 ): Promise<Result<HistoricalRateLookup, Error>> => {
   const timestamp = Math.floor(new Date(date).getTime() / 1000);
-  return ResultAsync.fromPromise(
-    getHistoricalFiatPrice({ currency, timestamp }),
-    (e) => e as Error,
-  )
+  return ResultAsync.fromPromise(getHistoricalFiatPrice({ currency, timestamp }), (e) => e as Error)
     .andThen((result) => {
       if (result.isErr()) {
         return err(

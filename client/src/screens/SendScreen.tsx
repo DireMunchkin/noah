@@ -26,10 +26,7 @@ import { CurrencyToggle } from "~/components/CurrencyToggle";
 import { COLORS } from "~/lib/styleConstants";
 import { useBottomTabBarHeight } from "react-native-bottom-tabs";
 import { BlinkingCaret } from "~/components/BlinkingCaret";
-import {
-  useBitcoinAmountFormatter,
-  useBitcoinAmountUnit,
-} from "~/hooks/useBitcoinAmountFormatter";
+import { useBitcoinAmountFormatter, useBitcoinAmountUnit } from "~/hooks/useBitcoinAmountFormatter";
 
 const SendScreen = () => {
   const navigation = useNavigation();

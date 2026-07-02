@@ -1,10 +1,6 @@
 import { Host } from "@expo/ui";
 import { useState } from "react";
-import {
-  Button as ComposeButton,
-  Shape,
-  Text as ComposeText,
-} from "@expo/ui/jetpack-compose";
+import { Button as ComposeButton, Shape, Text as ComposeText } from "@expo/ui/jetpack-compose";
 import { fillMaxSize } from "@expo/ui/jetpack-compose/modifiers";
 import { Button as SwiftButton, Text as SwiftText } from "@expo/ui/swift-ui";
 import {
@@ -94,8 +90,7 @@ export function NativeNoahButton({
   const isDisabled = disabled || isLoading;
   const displayedLabel = isLoading ? (loadingLabel ?? "Loading...") : label;
   const height = BUTTON_HEIGHT[size];
-  const activeColor =
-    variant === "destructive" ? BUTTON_COLORS.destructive : BUTTON_COLORS.primary;
+  const activeColor = variant === "destructive" ? BUTTON_COLORS.destructive : BUTTON_COLORS.primary;
   const contentColor =
     variant === "destructive" ? BUTTON_COLORS.destructiveText : BUTTON_COLORS.primaryText;
   const disabledContainerColor = isDark

@@ -227,9 +227,7 @@ const getAccessToken = async (options?: {
   if (!forceRefresh) {
     const storedTokenResult = await getServerAuthToken();
     if (storedTokenResult.isErr()) {
-      log.w("Stored server auth token is unreadable, re-authenticating", [
-        storedTokenResult.error,
-      ]);
+      log.w("Stored server auth token is unreadable, re-authenticating", [storedTokenResult.error]);
       await clearStoredAccessToken();
     } else if (storedTokenResult.value) {
       const shouldRefreshResult = shouldRefreshServerAuthToken(
@@ -323,8 +321,7 @@ async function post<T, U>(
   return responseResult;
 }
 
-export const getFiatPrices = () =>
-  post<FiatPricesPayload, FiatPricesResponse>("/prices", {});
+export const getFiatPrices = () => post<FiatPricesPayload, FiatPricesResponse>("/prices", {});
 
 export const getHistoricalFiatPrice = (payload: HistoricalFiatPricePayload) =>
   post<HistoricalFiatPricePayload, HistoricalFiatPriceResponse>("/historical-price", payload);
