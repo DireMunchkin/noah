@@ -31,6 +31,7 @@ import { BackupSettingsScreen } from "~/screens/BackupSettingsScreen";
 import RestoreWalletScreen from "~/screens/RestoreWalletScreen";
 import ArkInfoScreen from "~/screens/ArkInfoScreen";
 import ExportDatabaseScreen from "~/screens/ExportDatabaseScreen";
+import FeedbackScreen from "~/screens/FeedbackScreen";
 import NoahStoryScreen from "~/screens/NoahStoryScreen";
 import DebugScreen from "~/screens/DebugScreen";
 import QRHubScreen from "~/screens/QRHubScreen";
@@ -80,6 +81,7 @@ export type SettingsStackParamList = {
   BackupSettings: undefined;
   ArkInfo: undefined;
   ExportDatabase: undefined;
+  Feedback: undefined;
   VTXOs: undefined;
   VTXODetail: { vtxo: VTXOWithStatus };
   UnilateralExit: { vtxoIds?: string[] } | undefined;
@@ -162,6 +164,7 @@ const SettingsStackNav = () => (
       component={ExportDatabaseScreen}
       options={{ animation: "default" }}
     />
+    <Stack.Screen name="Feedback" component={FeedbackScreen} options={{ animation: "default" }} />
     <Stack.Screen name="VTXOs" component={VTXOsScreen} options={{ animation: "default" }} />
     <Stack.Screen
       name="VTXODetail"

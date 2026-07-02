@@ -22,7 +22,6 @@ import logoImageDark from "../../assets/1024_no_background.png";
 import logoImageLight from "../../assets/All_Files/light_dark_tinted/icon_clear_tinted_ios.png";
 import { COLORS } from "~/lib/styleConstants";
 import { useIconColor, useTheme } from "~/hooks/useTheme";
-import { FeedbackBottomSheet } from "~/components/FeedbackBottomSheet";
 import { resetAndReRegisterWithServer } from "../lib/server";
 import { useBottomTabBarHeight } from "react-native-bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -61,7 +60,6 @@ const SettingsScreen = () => {
   const { isDark } = useTheme();
   const logoImage = isDark ? logoImageDark : logoImageLight;
   const [confirmText, setConfirmText] = useState("");
-  const [showFeedback, setShowFeedback] = useState(false);
   const [isDeleteWalletDialogOpen, setIsDeleteWalletDialogOpen] = useState(false);
   const {
     isInitialized,
@@ -206,7 +204,7 @@ const SettingsScreen = () => {
     } else if (item.id === "emergencyExit") {
       navigation.navigate("UnilateralExit");
     } else if (item.id === "feedback") {
-      setShowFeedback(true);
+      navigation.navigate("Feedback");
     } else if (item.id === "unifiedPush") {
       navigation.navigate("UnifiedPush", { fromOnboarding: false });
     } else if (item.id === "exportDatabase") {
@@ -589,8 +587,6 @@ const SettingsScreen = () => {
           <Text className="text-muted-foreground text-sm">Made with ❤️ from Noah team</Text>
         </View>
       </ScrollView>
-
-      <FeedbackBottomSheet isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </NoahSafeAreaView>
   );
 };
