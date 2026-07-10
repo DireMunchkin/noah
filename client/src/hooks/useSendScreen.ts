@@ -10,7 +10,12 @@ import {
   type DestinationTypes,
   ParsedBip321,
 } from "../lib/sendUtils";
-import { useSend, useSendFeeEstimate, type SendFeeEstimateParams } from "./usePayments";
+import {
+  useLightningAddressPaymentRoute,
+  useSend,
+  useSendFeeEstimate,
+  type SendFeeEstimateParams,
+} from "./usePayments";
 import {
   type OnchainWalletFeeEstimate,
   type OnchainSendSource,
@@ -140,6 +145,13 @@ export const useSendScreen = () => {
 
   const finalDestinationType =
     destinationType === "bip321" ? selectedPaymentMethod : destinationType;
+  const cleanedDestination = destination.trim().replace(/^(bitcoin:|lightning:)/i, "");
+  const normalizedLnurlDestination = normalizeLightningAddress(cleanedDestination);
+  const lightningAddressPaymentRouteDestination =
+    showConfirmation && finalDestinationType === "lnurl" ? normalizedLnurlDestination : null;
+  const lightningAddressPaymentRouteQuery = useLightningAddressPaymentRoute(
+    lightningAddressPaymentRouteDestination,
+  );
 
   const {
     mutate: send,
@@ -229,15 +241,16 @@ export const useSendScreen = () => {
       }
     }
 
-    const cleanedDestination = destination.trim().replace(/^(bitcoin:|lightning:)/i, "");
-
     switch (finalDestinationType) {
       case "ark":
         return { method: "ark", amountSat };
       case "lightning":
-      case "lnurl":
       case "offer":
         return { method: "lightning", amountSat };
+      case "lnurl":
+        return lightningAddressPaymentRouteQuery.data
+          ? { method: lightningAddressPaymentRouteQuery.data.method, amountSat }
+          : null;
       case "onchain":
         return cleanedDestination && resolvedOnchainSource !== null
           ? {
@@ -253,33 +266,16 @@ export const useSendScreen = () => {
   }, [
     amountSat,
     bip321Data,
-    destination,
+    cleanedDestination,
     destinationType,
     finalDestinationType,
+    lightningAddressPaymentRouteQuery.data,
     resolvedOnchainSource,
     selectedPaymentMethod,
     showConfirmation,
   ]);
 
-  const [debouncedFeeEstimateParams, setDebouncedFeeEstimateParams] =
-    useState<SendFeeEstimateParams | null>(null);
-
-  useEffect(() => {
-    if (!feeEstimateParams) {
-      setDebouncedFeeEstimateParams(null);
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      setDebouncedFeeEstimateParams(feeEstimateParams);
-    }, 350);
-
-    return () => {
-      clearTimeout(timeout);
-    };
-  }, [feeEstimateParams]);
-
-  const feeEstimateQuery = useSendFeeEstimate(debouncedFeeEstimateParams);
+  const feeEstimateQuery = useSendFeeEstimate(feeEstimateParams);
 
   const feeEstimateNote = useMemo(() => {
     if (!isOnchainSend || resolvedOnchainSource !== "onchain") {
@@ -325,6 +321,16 @@ export const useSendScreen = () => {
 
     log.w("Failed to estimate send fee", [feeEstimateQuery.error]);
   }, [feeEstimateQuery.error]);
+
+  useEffect(() => {
+    if (!lightningAddressPaymentRouteQuery.error) {
+      return;
+    }
+
+    log.w("Failed to resolve lightning address payment route", [
+      lightningAddressPaymentRouteQuery.error,
+    ]);
+  }, [lightningAddressPaymentRouteQuery.error]);
 
   const toggleCurrency = useCallback(() => {
     if (currency === "SATS") {
@@ -508,7 +514,6 @@ export const useSendScreen = () => {
         btcPrice,
       });
     } else {
-      const cleanedDestination = destination.trim().replace(/^(bitcoin:|lightning:)/i, "");
       const destinationToSend =
         finalDestinationType === "lnurl"
           ? normalizeLightningAddress(cleanedDestination)
@@ -529,6 +534,10 @@ export const useSendScreen = () => {
         comment: comment || null,
         onchainSource:
           finalDestinationType === "onchain" ? (resolvedOnchainSource ?? undefined) : undefined,
+        lightningAddressPaymentRoute:
+          finalDestinationType === "lnurl" && lightningAddressPaymentRouteDestination
+            ? lightningAddressPaymentRouteQuery.data
+            : undefined,
         btcPrice,
       });
     }
@@ -625,6 +634,10 @@ export const useSendScreen = () => {
     setSelectedOnchainSource,
     resolvedOnchainSource,
     isOnchainSourceSelectionRequired,
+    isLightningAddressPaymentRouteResolutionRequired:
+      lightningAddressPaymentRouteDestination !== null &&
+      !lightningAddressPaymentRouteQuery.data &&
+      !lightningAddressPaymentRouteQuery.error,
     onchainWalletBalance,
     offchainWalletBalance,
     showConfirmation,
@@ -632,9 +645,11 @@ export const useSendScreen = () => {
     showSuccess,
     handleCloseSuccess,
     feeEstimate: feeEstimateQuery.data,
-    isEstimatingFee: feeEstimateQuery.isFetching,
-    feeEstimateError: feeEstimateQuery.error,
-    feeEstimateUnavailableText: null,
+    isEstimatingFee: lightningAddressPaymentRouteQuery.isFetching || feeEstimateQuery.isFetching,
+    feeEstimateError: lightningAddressPaymentRouteQuery.error ?? feeEstimateQuery.error,
+    feeEstimateUnavailableText: lightningAddressPaymentRouteQuery.error
+      ? "Unable to determine whether this payment will use Ark or Lightning."
+      : null,
     feeEstimateNote,
     feeEstimateWarning,
   };
