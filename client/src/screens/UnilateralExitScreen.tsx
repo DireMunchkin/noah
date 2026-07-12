@@ -18,6 +18,7 @@ import { Input } from "~/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { NativeNoahButton } from "~/components/ui/NativeNoahButton";
 import { NativeNoahIconButton } from "~/components/ui/NativeNoahIconButton";
+import { NativeNoahPicker, type NativeNoahPickerOption } from "~/components/ui/NativeNoahPicker";
 import { NativeNoahSecondaryButton } from "~/components/ui/NativeNoahSecondaryButton";
 import { NoahActivityIndicator } from "~/components/ui/NoahActivityIndicator";
 import { NoahSafeAreaView } from "~/components/NoahSafeAreaView";
@@ -54,7 +55,6 @@ import type {
   ExitVtxoResult,
 } from "react-native-nitro-ark";
 import { useBitcoinAmountFormatter } from "~/hooks/useBitcoinAmountFormatter";
-import { Host, Picker } from "@expo/ui";
 
 type UnilateralExitRouteProp = RouteProp<SettingsStackParamList, "UnilateralExit">;
 type IconName = React.ComponentProps<typeof Icon>["name"];
@@ -173,6 +173,11 @@ const PHASE_LABELS: Record<ExitProgressState, string> = {
   Claimed: "Done",
   VtxoAlreadySpent: "Spent",
 };
+
+const EXIT_MODE_OPTIONS = [
+  { label: "Entire wallet", value: "wallet" },
+  { label: "Selected VTXOs", value: "selected" },
+] as const satisfies readonly NativeNoahPickerOption<ExitStartMode>[];
 
 const ExitPhaseRail = ({
   currentState,
@@ -398,14 +403,12 @@ const ExitModePicker = ({
   onChange: (value: ExitStartMode) => void;
   disabled: boolean;
 }) => (
-  <View className="rounded-lg border border-border bg-background px-3 py-2">
-    <Host style={{ height: 44, width: "100%" }}>
-      <Picker selectedValue={value} onValueChange={onChange} appearance="menu" enabled={!disabled}>
-        <Picker.Item label="Entire wallet" value="wallet" />
-        <Picker.Item label="Selected VTXOs" value="selected" />
-      </Picker>
-    </Host>
-  </View>
+  <NativeNoahPicker
+    value={value}
+    options={EXIT_MODE_OPTIONS}
+    onValueChange={onChange}
+    disabled={disabled}
+  />
 );
 
 const StartExitPanel = ({
