@@ -43,6 +43,11 @@ import {
   LightningReceive,
 } from "react-native-nitro-ark";
 import { err, ok, Result, ResultAsync } from "neverthrow";
+import {
+  isInvoiceDescriptionValid,
+  MAX_INVOICE_DESCRIPTION_LENGTH,
+  normalizeInvoiceDescription,
+} from "./lightningInvoice";
 
 export type {
   ArkoorPaymentResult,
@@ -125,9 +130,22 @@ export const onchainIsMine = async (
   );
 };
 
-export const bolt11Invoice = async (amountSat: number): Promise<Result<Bolt11Invoice, Error>> => {
+export const bolt11Invoice = async (
+  amountSat: number,
+  description?: string,
+): Promise<Result<Bolt11Invoice, Error>> => {
+  const normalizedDescription = normalizeInvoiceDescription(description);
+
+  if (!isInvoiceDescriptionValid(normalizedDescription)) {
+    return err(
+      new Error(
+        `Lightning invoice descriptions must be ${MAX_INVOICE_DESCRIPTION_LENGTH} characters or fewer`,
+      ),
+    );
+  }
+
   return ResultAsync.fromPromise(
-    bolt11InvoiceNitro(amountSat),
+    bolt11InvoiceNitro(amountSat, normalizedDescription),
     (error) =>
       new Error(
         `Failed to generate lightning invoice: ${error instanceof Error ? error.message : String(error)}`,

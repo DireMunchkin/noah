@@ -43,6 +43,11 @@ import { BlinkingCaret } from "~/components/BlinkingCaret";
 import { useBitcoinAmountFormatter, useBitcoinAmountUnit } from "~/hooks/useBitcoinAmountFormatter";
 import { BoardArkBottomSheet } from "~/components/BoardArkBottomSheet";
 import { NativeNoahIconButton } from "~/components/ui/NativeNoahIconButton";
+import {
+  getInvoiceDescriptionLength,
+  isInvoiceDescriptionValid,
+  MAX_INVOICE_DESCRIPTION_LENGTH,
+} from "~/lib/lightningInvoice";
 
 const minAmount = 1;
 const SUBSCRIPTION_RETRY_DELAY_MS = 1000;
@@ -200,6 +205,7 @@ const ReceiveScreen = () => {
   const fiatCurrencyInfo = getFiatCurrencyInfo(fiatCurrency);
   const { copyWithState, isCopied } = useCopyToClipboard();
   const [generatedRequest, setGeneratedRequest] = useState<GeneratedReceiveRequest | null>(null);
+  const [description, setDescription] = useState("");
   const receiveSessionIdRef = useRef(0);
   const activeReceiveSessionRef = useRef<ActiveReceiveSession | null>(null);
   const arkSubscriptionRef = useRef<BarkNotificationSubscription | null>(null);
@@ -243,10 +249,12 @@ const ReceiveScreen = () => {
     [arkAddress, generatedAmountSat, generatedOnchainAddress, lightningInvoice],
   );
   const isGenerated = Boolean(bip321Uri);
-  const isClearDisabled = isLoading || (!isGenerated && amount === "");
+  const isClearDisabled = isLoading || (!isGenerated && amount === "" && description === "");
   const isAmountLocked = isLoading || isGenerated;
   const hasEnteredAmount = amount.trim().length > 0;
   const canGenerateLightningInvoice = hasEnteredAmount && amountSat >= minAmount;
+  const descriptionLength = getInvoiceDescriptionLength(description);
+  const isDescriptionTooLong = !isInvoiceDescriptionValid(description);
   const isAmountlessLightningRequest = isGenerated && generatedAmountSat === null;
   const displayAmount = amount === "" ? (currency === "FIAT" ? "0.00" : "0") : amount;
   const amountPrefix =
@@ -359,6 +367,7 @@ const ReceiveScreen = () => {
       setGeneratedRequest(null);
       if (resetAmount) {
         setAmount("");
+        setDescription("");
       }
     },
     [setAmount],
@@ -562,7 +571,7 @@ const ReceiveScreen = () => {
     const lightningInvoiceTask =
       requestAmountSat === null
         ? Promise.resolve<Bolt11Invoice | undefined>(undefined)
-        : generateLightningInvoice(requestAmountSat);
+        : generateLightningInvoice({ amountSat: requestAmountSat, description });
 
     const generationTasks = [
       generateOnchainAddress(),
@@ -616,12 +625,17 @@ const ReceiveScreen = () => {
     amountSat,
     cancelReceiveSession,
     canGenerateLightningInvoice,
+    description,
     generateLightningInvoice,
     generateOffchainAddress,
     generateOnchainAddress,
   ]);
 
   const handleGenerate = () => {
+    if (isDescriptionTooLong) {
+      return;
+    }
+
     Keyboard.dismiss();
     cancelPendingReceiveGeneration();
 
@@ -774,6 +788,31 @@ const ReceiveScreen = () => {
                     : `≈ ${!isNaN(amountSat) && amount ? formatBitcoinAmount(amountSat) : formatBitcoinAmount(0)}`}
                 </Text>
 
+                <View
+                  className="mt-5 w-full rounded-[22px] border px-4 py-3"
+                  style={{
+                    borderColor: `${colors.mutedForeground}26`,
+                    backgroundColor: `${colors.card}CC`,
+                  }}
+                >
+                  <TextInput
+                    className="min-h-9 text-base text-foreground"
+                    placeholder="Description (optional)"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={description}
+                    onChangeText={setDescription}
+                    editable={!isAmountLocked}
+                    returnKeyType="done"
+                    onSubmitEditing={Keyboard.dismiss}
+                  />
+                </View>
+                {isDescriptionTooLong ? (
+                  <Text className="mt-2 text-sm text-destructive">
+                    Description is {descriptionLength} characters; maximum is{" "}
+                    {MAX_INVOICE_DESCRIPTION_LENGTH}.
+                  </Text>
+                ) : null}
+
                 {isGenerated ? (
                   <View
                     className="mt-4 rounded-full border px-4 py-2"
@@ -900,7 +939,7 @@ const ReceiveScreen = () => {
                 </Button>
                 <Button
                   onPress={handleGenerate}
-                  disabled={isLoading}
+                  disabled={isLoading || isDescriptionTooLong}
                   className="h-14 flex-1 rounded-2xl"
                   style={{ backgroundColor: COLORS.BITCOIN_ORANGE }}
                 >
