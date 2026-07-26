@@ -63,8 +63,11 @@ export const distanceKm = (
 
 export const formatDistance = (kilometers: number) =>
   kilometers < 1
-    ? `${Math.max(1, Math.round(kilometers * 1000))} m`
-    : `${kilometers.toFixed(1)} km`;
+    ? `${Math.max(1, Math.round(kilometers * 1000))} m (${Math.max(
+        1,
+        Math.round(kilometers * 1000 * 1.09361),
+      )} yd)`
+    : `${kilometers.toFixed(1)} km (${Math.round(kilometers * 0.621371)} mi)`;
 
 export const parseBtcMapViewport = (value: unknown): BtcMapViewport | undefined => {
   if (typeof value !== "object" || value === null || !("center" in value) || !("zoom" in value)) {
