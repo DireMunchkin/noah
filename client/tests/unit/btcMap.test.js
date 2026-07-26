@@ -28,9 +28,10 @@ describe("BTC Map distance", () => {
     expect(distance).toBeGreaterThan(6);
     expect(distance).toBeLessThan(7);
     expect(formatDistance(distance)).toBe(
-      `${distance.toFixed(1)} km (${Math.round(distance * 0.621371)} mi)`,
+      `${distance.toFixed(1)} km (${(distance * 0.621371).toFixed(1)} mi)`,
     );
-    expect(formatDistance(16)).toBe("16.0 km (10 mi)");
+    expect(formatDistance(1)).toBe("1.0 km (0.6 mi)");
+    expect(formatDistance(16)).toBe("16.0 km (9.9 mi)");
     expect(formatDistance(0.25)).toBe("250 m (273 yd)");
     expect(formatDistance(0)).toBe("1 m (1 yd)");
   });
