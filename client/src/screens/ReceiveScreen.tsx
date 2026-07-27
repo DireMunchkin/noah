@@ -855,15 +855,37 @@ const ReceiveScreen = () => {
 
               {bip321Uri ? (
                 <View className="mt-7 items-center">
-                  <View className="items-center justify-center px-2 py-2">
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isCopied("bip321")
+                        ? "Unified request copied"
+                        : "Copy unified receiving request"
+                    }
+                    accessibilityHint="Copies the unified receiving request to the clipboard"
+                    onPress={() => handleCopyToClipboard(bip321Uri, "bip321")}
+                    className="items-center justify-center rounded-[24px] px-2 py-2"
+                  >
                     <View className="rounded-[24px] bg-white p-4 shadow-sm shadow-foreground/5">
                       <QRCode value={bip321Uri} size={190} backgroundColor="white" color="black" />
                     </View>
-                  </View>
+                  </Pressable>
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isCopied("bip321")
+                        ? "Unified request copied"
+                        : "Copy unified receiving request"
+                    }
+                    accessibilityHint="Copies the unified receiving request to the clipboard"
                     onPress={() => handleCopyToClipboard(bip321Uri, "bip321")}
-                    className="mt-5"
+                    className="mt-5 flex-row items-center gap-2"
                   >
+                    <Icon
+                      name={isCopied("bip321") ? "checkmark-circle-outline" : "copy-outline"}
+                      size={17}
+                      color={isCopied("bip321") ? COLORS.SUCCESS : colors.primary}
+                    />
                     <Text className="text-sm font-semibold text-primary">
                       {isCopied("bip321") ? "Request copied" : "Tap to copy request"}
                     </Text>
