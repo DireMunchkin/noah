@@ -1045,7 +1045,7 @@ export default function BtcMapScreen() {
         <NearbyPlaces
           places={filteredPlaces}
           location={userLocation}
-          bottom={panelBottom}
+          bottom={Platform.OS === "android" ? 4 : tabBarHeight + 4}
           onSelect={selectPlace}
         />
       )}
