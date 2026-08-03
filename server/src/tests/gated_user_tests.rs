@@ -301,7 +301,7 @@ async fn test_deregister_user() {
 
     let backup_repo = BackupRepository::new(&app_state.db_pool);
     backup_repo
-        .upsert_metadata(&user.pubkey().to_string(), "test_s3_key", 1024, 1)
+        .upsert_metadata(&user.pubkey().to_string(), 1024, 1)
         .await
         .unwrap();
     backup_repo

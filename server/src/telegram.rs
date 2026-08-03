@@ -203,7 +203,6 @@ mod tests {
             minimum_app_version: "0.0.1".to_string(),
             redis_url: "redis://127.0.0.1:6379".to_string(),
             redis_pool_size: 32,
-            ntfy_auth_token: "test-token".to_string(),
             ses_from_address: "test@noahwallet.com".to_string(),
             email_dev_mode: true,
             auth_jwt_secret: "test-jwt-secret".to_string(),

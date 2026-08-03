@@ -5,7 +5,7 @@ use serde_json::json;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use crate::db::backup_repo::BackupRepository;
+use crate::db::backup_repo::{BackupRepository, legacy_backup_object_key};
 use crate::tests::common::{TestUser, create_test_user, setup_test_app};
 use crate::types::{BackupInfo, DownloadUrlResponse, UploadUrlResponse};
 
@@ -44,9 +44,10 @@ async fn test_get_upload_url() {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let res: UploadUrlResponse = serde_json::from_slice(&body).unwrap();
         assert!(!res.upload_url.is_empty());
-        assert!(!res.s3_key.is_empty());
-        assert!(res.s3_key.contains(&user.pubkey().to_string()));
-        assert!(res.s3_key.contains("backup_v1.db"));
+        assert_eq!(
+            res.s3_key,
+            legacy_backup_object_key(&user.pubkey().to_string(), 1)
+        );
     } else {
         // If S3 is not available, we expect an internal server error
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -381,7 +382,7 @@ async fn test_complete_upload() {
     create_test_user(&app_state, &user, None).await;
     let access_token = user.access_token(&app_state);
 
-    let s3_key = format!("{}/backup_v1.db", user.pubkey());
+    let s3_key = legacy_backup_object_key(&user.pubkey().to_string(), 1);
 
     let response = app
         .oneshot(
@@ -429,7 +430,7 @@ async fn test_complete_upload_upsert() {
     create_test_user(&app_state, &user, None).await;
     let access_token = user.access_token(&app_state);
 
-    let s3_key = format!("{}/backup_v1.db", user.pubkey());
+    let s3_key = legacy_backup_object_key(&user.pubkey().to_string(), 1);
 
     // First upload
     let response = app
@@ -497,6 +498,123 @@ async fn test_complete_upload_upsert() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
+async fn test_complete_upload_rejects_noncanonical_s3_keys() {
+    let (app, app_state, _guard) = setup_test_app().await;
+    let user = TestUser::new();
+    create_test_user(&app_state, &user, None).await;
+    let access_token = user.access_token(&app_state);
+
+    for submitted_s3_key in ["victim/backup_v1.db", "malformed"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri("/backup/complete_upload")
+                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(
+                        http::header::AUTHORIZATION,
+                        format!("Bearer {}", access_token),
+                    )
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({
+                            "s3_key": submitted_s3_key,
+                            "backup_version": 1,
+                            "backup_size": 1024
+                        }))
+                        .unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(body.to_vec()).unwrap();
+        assert!(body.contains("Invalid backup upload"));
+        assert!(!body.contains(submitted_s3_key));
+    }
+
+    let metadata = BackupRepository::new(&app_state.db_pool)
+        .find_by_pubkey_and_version(&user.pubkey().to_string(), 1)
+        .await
+        .unwrap();
+    assert!(metadata.is_none());
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_complete_upload_key_mismatch_does_not_overwrite_metadata() {
+    let (app, app_state, _guard) = setup_test_app().await;
+    let user = TestUser::new();
+    create_test_user(&app_state, &user, None).await;
+    let pubkey = user.pubkey().to_string();
+    let backup_repo = BackupRepository::new(&app_state.db_pool);
+    backup_repo.upsert_metadata(&pubkey, 1024, 1).await.unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/backup/complete_upload")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .header(
+                    http::header::AUTHORIZATION,
+                    format!("Bearer {}", user.access_token(&app_state)),
+                )
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "s3_key": "victim/backup_v1.db",
+                        "backup_version": 1,
+                        "backup_size": 2048
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let metadata = backup_repo
+        .find_by_pubkey_and_version(&pubkey, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(metadata.s3_key, legacy_backup_object_key(&pubkey, 1));
+    assert_eq!(metadata.backup_size, 1024);
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_legacy_backup_key_constraint_rejects_noncanonical_metadata() {
+    let (_app, app_state, _guard) = setup_test_app().await;
+    let user = TestUser::new();
+    create_test_user(&app_state, &user, None).await;
+
+    let error = sqlx::query(
+        "INSERT INTO backup_metadata (pubkey, s3_key, backup_size, backup_version)
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(user.pubkey().to_string())
+    .bind("victim/backup_v1.db")
+    .bind(1024_i64)
+    .bind(1_i32)
+    .execute(&app_state.db_pool)
+    .await
+    .unwrap_err();
+
+    assert_eq!(
+        error
+            .as_database_error()
+            .and_then(|database_error| database_error.constraint()),
+        Some("backup_metadata_s3_key_matches_owner")
+    );
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
 async fn test_list_backups_empty() {
     let (app, app_state, _guard) = setup_test_app().await;
     let user = TestUser::new();
@@ -537,11 +655,11 @@ async fn test_list_backups_with_data() {
     // Insert test backup metadata
     let backup_repo = BackupRepository::new(&app_state.db_pool);
     backup_repo
-        .upsert_metadata(&user.pubkey().to_string(), "test/backup_v1.db", 1024, 1)
+        .upsert_metadata(&user.pubkey().to_string(), 1024, 1)
         .await
         .unwrap();
     backup_repo
-        .upsert_metadata(&user.pubkey().to_string(), "test/backup_v2.db", 2048, 2)
+        .upsert_metadata(&user.pubkey().to_string(), 2048, 2)
         .await
         .unwrap();
 
@@ -586,10 +704,9 @@ async fn test_get_download_url_specific_version() {
     let access_token = user.access_token(&app_state);
 
     // Insert test backup metadata
-    let s3_key = format!("{}/backup_v1.db", user.pubkey());
     let backup_repo = BackupRepository::new(&app_state.db_pool);
     backup_repo
-        .upsert_metadata(&user.pubkey().to_string(), &s3_key, 1024, 1)
+        .upsert_metadata(&user.pubkey().to_string(), 1024, 1)
         .await
         .unwrap();
 
@@ -640,23 +757,11 @@ async fn test_get_download_url_latest() {
     let now = Utc::now().to_rfc3339();
     let one_hour_ago = (Utc::now() - Duration::hours(1)).to_rfc3339();
     backup_repo
-        .upsert_metadata_with_timestamp(
-            &user.pubkey().to_string(),
-            "test/backup_v1.db",
-            1024,
-            1,
-            &one_hour_ago,
-        )
+        .upsert_metadata_with_timestamp(&user.pubkey().to_string(), 1024, 1, &one_hour_ago)
         .await
         .unwrap();
     backup_repo
-        .upsert_metadata_with_timestamp(
-            &user.pubkey().to_string(),
-            "test/backup_v2.db",
-            2048,
-            2,
-            &now,
-        )
+        .upsert_metadata_with_timestamp(&user.pubkey().to_string(), 2048, 2, &now)
         .await
         .unwrap();
 
@@ -729,10 +834,9 @@ async fn test_delete_backup() {
     let access_token = user.access_token(&app_state);
 
     // Insert test backup metadata
-    let s3_key = format!("{}/backup_v1.db", user.pubkey());
     let backup_repo = BackupRepository::new(&app_state.db_pool);
     backup_repo
-        .upsert_metadata(&user.pubkey().to_string(), &s3_key, 1024, 1)
+        .upsert_metadata(&user.pubkey().to_string(), 1024, 1)
         .await
         .unwrap();
 

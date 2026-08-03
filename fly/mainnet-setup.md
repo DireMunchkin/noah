@@ -55,8 +55,7 @@ fly secrets set -a noah-mainnet \
   AWS_ACCESS_KEY_ID=... \
   AWS_SECRET_ACCESS_KEY=... \
   AWS_REGION=... \
-  SENTRY_URL=... \
-  NTFY_AUTH_TOKEN=...
+  SENTRY_URL=...
 ```
 
 After the one-time setup, mainnet deploys can run through the manual GitHub Actions workflow.
