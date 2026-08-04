@@ -1,6 +1,6 @@
 {
   "name": "noah",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -106,7 +106,7 @@
     "react-native-gesture-handler": "2.32.0",
     "react-native-keychain": "10.0.0",
     "react-native-mmkv": "4.3.1",
-    "react-native-nitro-ark": "0.0.133",
+    "react-native-nitro-ark": "0.0.136",
     "react-native-nitro-modules": "0.35.6",
     "react-native-qrcode-svg": "6.3.21",
     "react-native-quick-base64": "3.0.0",
