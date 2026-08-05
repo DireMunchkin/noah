@@ -10,13 +10,20 @@ This document explains how the Android app handles push notifications without Go
 ## Registration flow (device → server)
 1) UnifiedPush distributor (e.g., ntfy) supplies an HTTP endpoint to the app.
 2) `NoahPushService.onNewEndpoint` stores the endpoint in shared preferences (per app instance).
-3) React Native layer calls the gated API `POST /v0/register_push_token` with the endpoint; the server saves it in `push_tokens`.
+3) React Native layer calls the gated API `POST /v0/register_push_token` with the endpoint. The server accepts only public HTTPS endpoints, resolves every address, and then saves it in `push_tokens`.
 4) From then on, the server can POST notification payloads straight to the saved endpoint.
 
 ## Message delivery (server → device)
 - Server builds a JSON payload (`NotificationData` in `server/src/types.rs`) and uses `send_push_notification` / `send_push_notification_with_unique_k1` in `server/src/push.rs`.
-- UnifiedPush tokens are sent via `send_unified_notification`, which HTTP POSTs the JSON to the distributor endpoint (optionally with a bearer token `ntfy_auth_token`).
+- UnifiedPush tokens are sent via `send_unified_notification`, which HTTP POSTs the JSON to the distributor endpoint without an authorization header. The distributor must permit anonymous writes to the app's capability URL.
+- Before every delivery, the server resolves the endpoint again, rejects any non-public address, and pins the HTTP request to the validated address set. Redirects and environment proxies are disabled.
 - The UnifiedPush distributor delivers the message to the app, waking `NoahPushService` even without Play Services.
+
+For a private ntfy installation, grant anonymous write-only access to UnifiedPush topics before deploying this server change:
+
+```sh
+ntfy access '*' 'up*' write-only
+```
 
 ## Kotlin handling in `NoahPushService`
 High‑level steps for every message:
@@ -53,7 +60,7 @@ The `notification_k1` in maintenance payloads is only a job-correlation identifi
 - `NoahPushService` invokes this with `wait=true`, ensuring the native side blocks until the payment is settled/claimable. The call runs on a worker thread to avoid blocking the UnifiedPush service thread itself.
 
 ## Failure/edge cases
-- If the UnifiedPush endpoint POST returns non‑2xx, the server logs but continues; the client won’t receive that push.
+- If endpoint validation or the UnifiedPush POST fails, the server logs a sanitized error and continues; the client won’t receive that push. Endpoint URLs and response bodies are never logged because capability URLs and distributor responses may contain secrets.
 - If wallet isn’t loaded, `ensureWalletLoaded` attempts to load it; failures are logged and abort handling.
 - If `tryClaimLightningReceive` throws (timeout, network, or wallet state), the error is logged and no “payment received” notification is shown.
 - OS may kill the background thread if the process is evicted; in that case the claim will be retried on the next app foreground or via periodic flows (e.g., `tryClaimAllLightningReceives` elsewhere).

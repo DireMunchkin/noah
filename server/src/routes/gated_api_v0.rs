@@ -1,10 +1,11 @@
-use crate::db::backup_repo::BackupRepository;
+use crate::db::backup_repo::{BackupRepository, legacy_backup_object_key};
 use crate::db::device_repo::DeviceRepository;
 use crate::db::heartbeat_repo::HeartbeatRepository;
 use crate::db::job_status_repo::JobStatusRepository;
 use crate::db::mailbox_authorization_repo::MailboxAuthorizationRepository;
 use crate::db::push_token_repo::PushTokenRepository;
 use crate::db::user_repo::UserRepository;
+use crate::push::validate_push_token;
 use crate::wide_event::WideEventHandle;
 // use crate::push::{PushNotificationData, send_push_notification};
 use crate::s3_client::S3BackupClient;
@@ -102,6 +103,8 @@ pub async fn register_push_token(
     if let Some(Extension(event)) = event {
         event.add_context("has_push_token", true);
     }
+
+    validate_push_token(&payload.push_token).await?;
 
     let push_token_repo = PushTokenRepository::new(&app_state.db_pool);
     push_token_repo
@@ -376,11 +379,7 @@ pub async fn get_upload_url(
     }
 
     let s3_client = S3BackupClient::new(state.config.s3_bucket_name.clone()).await?;
-    let s3_key = format!(
-        "{}/backup_v{}.db",
-        auth_payload.key.clone(),
-        payload.backup_version
-    );
+    let s3_key = legacy_backup_object_key(&auth_payload.key, payload.backup_version);
     let upload_url = s3_client.generate_upload_url(&s3_key).await?;
 
     Ok(Json(UploadUrlResponse { upload_url, s3_key }))
@@ -599,11 +598,17 @@ pub async fn complete_upload(
         event.add_context("backup_size_bytes", payload.backup_size);
     }
 
+    let s3_key = legacy_backup_object_key(&auth_payload.key, payload.backup_version);
+    if payload.s3_key != s3_key {
+        return Err(ApiError::InvalidArgument(
+            "Invalid backup upload".to_string(),
+        ));
+    }
+
     let backup_repo = BackupRepository::new(&state.db_pool);
     backup_repo
         .upsert_metadata(
             &auth_payload.key,
-            &payload.s3_key,
             payload.backup_size,
             payload.backup_version,
         )
@@ -633,17 +638,19 @@ pub async fn get_download_url(
 
     let backup_repo = BackupRepository::new(&state.db_pool);
 
-    let (s3_key, backup_size) = if let Some(version) = payload.backup_version {
-        backup_repo
+    let (backup_version, backup_size) = if let Some(version) = payload.backup_version {
+        let backup_size = backup_repo
             .find_by_version(&auth_payload.key, version)
             .await?
-            .ok_or(ApiError::NotFound("Backup not found".to_string()))?
+            .ok_or(ApiError::NotFound("Backup not found".to_string()))?;
+        (version, backup_size)
     } else {
         backup_repo
             .find_latest(&auth_payload.key)
             .await?
             .ok_or(ApiError::NotFound("Backup not found".to_string()))?
     };
+    let s3_key = legacy_backup_object_key(&auth_payload.key, backup_version);
 
     let s3_client = S3BackupClient::new(state.config.s3_bucket_name.clone()).await?;
     let download_url = s3_client.generate_download_url(&s3_key).await?;
@@ -666,10 +673,11 @@ pub async fn delete_backup(
 
     let backup_repo = BackupRepository::new(&state.db_pool);
 
-    let s3_key = backup_repo
-        .find_s3_key_by_version(&auth_payload.key, payload.backup_version)
+    backup_repo
+        .find_by_version(&auth_payload.key, payload.backup_version)
         .await?
         .ok_or(ApiError::NotFound("Backup not found".to_string()))?;
+    let s3_key = legacy_backup_object_key(&auth_payload.key, payload.backup_version);
 
     let s3_client = S3BackupClient::new(state.config.s3_bucket_name.clone()).await?;
     s3_client.delete_object(&s3_key).await?;

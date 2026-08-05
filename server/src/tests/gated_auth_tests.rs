@@ -7,8 +7,9 @@ use http_body_util::BodyExt;
 use serde_json::json;
 use tower::ServiceExt;
 
+use crate::db::user_repo::UserRepository;
 use crate::tests::common::{TestUser, create_test_user, setup_test_app};
-use crate::types::{AuthLoginResponse, RegisterResponse};
+use crate::types::{AuthLoginResponse, RegisterResponse, UserStatus};
 use crate::utils::make_k1;
 
 fn test_mailbox_authorization(expiry: chrono::DateTime<Local>) -> (String, i64, String) {
@@ -304,7 +305,7 @@ async fn test_register_push_token() {
                 )
                 .body(Body::from(
                     serde_json::to_vec(&json!({
-                        "push_token": "test_push_token"
+                        "push_token": "ExpoPushToken[test-token]"
                     }))
                     .unwrap(),
                 ))
@@ -322,7 +323,76 @@ async fn test_register_push_token() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(token, "test_push_token");
+    assert_eq!(token, "ExpoPushToken[test-token]");
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_register_push_token_rejects_private_endpoint_without_replacing_token() {
+    let (app, app_state, _guard) = setup_test_app().await;
+
+    let user = TestUser::new();
+    let pubkey = user.pubkey().to_string();
+    let access_token = user.access_token(&app_state);
+
+    sqlx::query("INSERT INTO users (pubkey, lightning_address) VALUES ($1, $2)")
+        .bind(&pubkey)
+        .bind("existing@localhost")
+        .execute(&app_state.db_pool)
+        .await
+        .unwrap();
+
+    use crate::db::push_token_repo::PushTokenRepository;
+    let push_token_repo = PushTokenRepository::new(&app_state.db_pool);
+    push_token_repo
+        .upsert(&pubkey, "ExpoPushToken[existing-token]")
+        .await
+        .unwrap();
+    let user_repo = UserRepository::new(&app_state.db_pool);
+    user_repo
+        .set_status(&pubkey, UserStatus::Deregistered)
+        .await
+        .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/register_push_token")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .header(
+                    http::header::AUTHORIZATION,
+                    format!("Bearer {}", access_token),
+                )
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "push_token": "https://127.0.0.1/up/secret-topic"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        push_token_repo
+            .find_by_pubkey(&pubkey)
+            .await
+            .unwrap()
+            .unwrap(),
+        "ExpoPushToken[existing-token]"
+    );
+    assert_eq!(
+        user_repo
+            .find_by_pubkey(&pubkey)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        UserStatus::Deregistered
+    );
 }
 
 #[tracing_test::traced_test]

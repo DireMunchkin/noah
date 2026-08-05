@@ -361,7 +361,7 @@ async fn loadtest_register_push_token(user: &mut GooseUser) -> TransactionResult
 
     let user_num = USER_COUNTER.fetch_add(1, Ordering::SeqCst);
     let payload = RegisterPushTokenPayload {
-        push_token: format!("loadtest_push_token_{}", user_num),
+        push_token: format!("ExpoPushToken[loadtest-{user_num}]"),
     };
 
     let request_builder = user

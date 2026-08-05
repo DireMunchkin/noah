@@ -8,6 +8,10 @@ use crate::types::{BackupInfo, BackupObjectInfo};
 const COMPLETED_BACKUP_RETENTION: i64 = 3;
 const MAX_RECENT_BACKUP_RESERVATIONS: i64 = 5;
 
+pub(crate) fn legacy_backup_object_key(pubkey: &str, backup_version: i32) -> String {
+    format!("{pubkey}/backup_v{backup_version}.db")
+}
+
 /// Represents a record from the `backup_metadata` table.
 #[derive(Debug)]
 pub struct BackupMetadata {
@@ -293,11 +297,11 @@ impl<'a> BackupRepository<'a> {
     pub async fn upsert_metadata(
         &self,
         pubkey: &str,
-        s3_key: &str,
         backup_size: u64,
         backup_version: i32,
     ) -> Result<()> {
         let size = i64::try_from(backup_size)?;
+        let s3_key = legacy_backup_object_key(pubkey, backup_version);
         sqlx::query(
             "INSERT INTO backup_metadata (pubkey, s3_key, backup_size, backup_version)
              VALUES ($1, $2, $3, $4)
@@ -308,7 +312,7 @@ impl<'a> BackupRepository<'a> {
                 created_at = now()",
         )
         .bind(pubkey)
-        .bind(s3_key)
+        .bind(&s3_key)
         .bind(size)
         .bind(backup_version)
         .execute(self.pool)
@@ -321,12 +325,12 @@ impl<'a> BackupRepository<'a> {
     pub async fn upsert_metadata_with_timestamp(
         &self,
         pubkey: &str,
-        s3_key: &str,
         backup_size: u64,
         backup_version: i32,
         created_at_iso: &str,
     ) -> Result<()> {
         let size = i64::try_from(backup_size)?;
+        let s3_key = legacy_backup_object_key(pubkey, backup_version);
         sqlx::query(
             "INSERT INTO backup_metadata (pubkey, s3_key, backup_size, backup_version, created_at)
              VALUES ($1, $2, $3, $4, $5)
@@ -336,7 +340,7 @@ impl<'a> BackupRepository<'a> {
                             created_at = excluded.created_at",
         )
         .bind(pubkey)
-        .bind(s3_key)
+        .bind(&s3_key)
         .bind(size)
         .bind(backup_version)
         .bind(chrono::DateTime::parse_from_rfc3339(created_at_iso)?.with_timezone(&Utc))
@@ -371,16 +375,10 @@ impl<'a> BackupRepository<'a> {
         Ok(backups)
     }
 
-    /// Finds a specific backup by version.
-    /// Returns a tuple of (s3_key, backup_size).
-    pub async fn find_by_version(
-        &self,
-        pubkey: &str,
-        version: i32,
-    ) -> Result<Option<(String, u64)>> {
-        let record = sqlx::query_as::<_, (String, i64)>(
-            "SELECT s3_key, backup_size
-             FROM backup_metadata
+    /// Finds the size of a specific backup version.
+    pub async fn find_by_version(&self, pubkey: &str, version: i32) -> Result<Option<u64>> {
+        let size = sqlx::query_scalar::<_, i64>(
+            "SELECT backup_size FROM backup_metadata
              WHERE pubkey = $1 AND backup_version = $2",
         )
         .bind(pubkey)
@@ -388,38 +386,21 @@ impl<'a> BackupRepository<'a> {
         .fetch_optional(self.pool)
         .await?;
 
-        Ok(record.map(|(key, size)| (key, size as u64)))
+        Ok(size.map(|size| size as u64))
     }
 
     /// Finds the latest backup for a user.
-    /// Returns a tuple of (s3_key, backup_size).
-    pub async fn find_latest(&self, pubkey: &str) -> Result<Option<(String, u64)>> {
-        let record = sqlx::query_as::<_, (String, i64)>(
-            "SELECT s3_key, backup_size
+    /// Returns a tuple of (backup_version, backup_size).
+    pub async fn find_latest(&self, pubkey: &str) -> Result<Option<(i32, u64)>> {
+        let record = sqlx::query_as::<_, (i32, i64)>(
+            "SELECT backup_version, backup_size
              FROM backup_metadata WHERE pubkey = $1
              ORDER BY created_at DESC LIMIT 1",
         )
         .bind(pubkey)
         .fetch_optional(self.pool)
         .await?;
-        Ok(record.map(|(key, size)| (key, size as u64)))
-    }
-
-    /// Finds the S3 key for a specific backup version.
-    pub async fn find_s3_key_by_version(
-        &self,
-        pubkey: &str,
-        version: i32,
-    ) -> Result<Option<String>> {
-        let key = sqlx::query_scalar::<_, String>(
-            "SELECT s3_key FROM backup_metadata WHERE pubkey = $1 AND backup_version = $2",
-        )
-        .bind(pubkey)
-        .bind(version)
-        .fetch_optional(self.pool)
-        .await?;
-
-        Ok(key)
+        Ok(record.map(|(version, size)| (version, size as u64)))
     }
 
     /// Finds the full metadata for a specific backup version.

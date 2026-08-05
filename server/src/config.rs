@@ -39,7 +39,6 @@ pub struct Config {
     pub minimum_app_version: String,
     pub redis_url: String,
     pub redis_pool_size: usize,
-    pub ntfy_auth_token: String,
     pub ses_from_address: String,
     pub email_dev_mode: bool,
     pub auth_jwt_secret: String,
@@ -123,7 +122,6 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(32),
-            ntfy_auth_token: std::env::var("NTFY_AUTH_TOKEN").unwrap_or_default(),
             ses_from_address: std::env::var("SES_FROM_ADDRESS")
                 .unwrap_or_else(|_| "noreply@noahwallet.io".to_string()),
             email_dev_mode: std::env::var("EMAIL_DEV_MODE")
@@ -266,7 +264,6 @@ impl Config {
         tracing::debug!("Minimum App Version: {}", self.minimum_app_version);
         tracing::debug!("Redis URL: [REDACTED]");
         tracing::debug!("Redis Pool Size: {}", self.redis_pool_size);
-        tracing::debug!("Ntfy Auth Token: [REDACTED]");
         tracing::debug!("SES From Address: {}", self.ses_from_address);
         tracing::debug!("JWT Auth Secret: [REDACTED]");
         tracing::debug!("JWT TTL Hours: {}", self.auth_jwt_ttl_hours);
