@@ -113,13 +113,20 @@ export const mergeBoardingWithOnchainTransactions = (
   ];
 };
 
-export const getTransactionDisplayLabel = (transaction: Transaction): string => {
+export const isCanceledTransaction = (transaction: Transaction): boolean =>
+  transaction.movementStatus === "canceled";
+
+const getBaseTransactionDisplayLabel = (transaction: Transaction): string => {
   if (transaction.movementKind === "onboard") {
     return "Board";
   }
 
   if (transaction.movementKind === "offboard") {
     return "Offboard";
+  }
+
+  if (transaction.movementKind === "exit") {
+    return "Ark Exit";
   }
 
   if (transaction.type === "Bolt11" || transaction.type === "Lnurl") {
@@ -133,5 +140,31 @@ export const getTransactionDisplayLabel = (transaction: Transaction): string => 
   return transaction.type;
 };
 
+export const getTransactionDisplayLabel = (transaction: Transaction): string => {
+  const label = getBaseTransactionDisplayLabel(transaction);
+  return isCanceledTransaction(transaction) ? `Canceled ${label}` : label;
+};
+
 export const isInternalBoardingTransfer = (transaction: Transaction): boolean =>
   transaction.movementKind === "onboard";
+
+export type TransactionAccountingValues = {
+  direction: "Incoming" | "Outgoing" | "Transfer" | "None";
+  amount: number;
+};
+
+export const getTransactionAccountingValues = (
+  transaction: Transaction,
+): TransactionAccountingValues => {
+  if (isCanceledTransaction(transaction)) {
+    return { direction: "None", amount: 0 };
+  }
+
+  if (isInternalBoardingTransfer(transaction)) {
+    return { direction: "Transfer", amount: transaction.amount };
+  }
+
+  return transaction.direction === "outgoing"
+    ? { direction: "Outgoing", amount: -transaction.amount }
+    : { direction: "Incoming", amount: transaction.amount };
+};

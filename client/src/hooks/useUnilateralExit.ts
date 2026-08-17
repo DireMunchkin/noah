@@ -5,6 +5,7 @@ import { useWalletStore } from "~/store/walletStore";
 import { getBlockHeight } from "~/hooks/useMarketData";
 import {
   allClaimableAtHeight,
+  cancelExit,
   claimExits,
   getExitStatus,
   getExitVtxos,
@@ -184,6 +185,32 @@ export function useStartVtxoExit() {
     onError: (error) => {
       log.e("Selected VTXO exit start mutation failed", [error]);
       showAlert({ title: "Failed to Start Exit", description: error.message });
+    },
+  });
+}
+
+export function useCancelExit() {
+  const { showAlert } = useAlert();
+
+  return useMutation<void, Error, string>({
+    mutationFn: async (vtxoId) => {
+      log.i("User requested exit cancellation", [{ vtxo_id: vtxoId }]);
+      readResult(await cancelExit(vtxoId));
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateExitQueries(),
+        queryClient.invalidateQueries({ queryKey: ["transactions"] }),
+      ]);
+      showAlert({
+        title: "Exit Canceled",
+        description: "The VTXO remains spendable and can be exited again later.",
+      });
+    },
+    onError: async (error) => {
+      log.e("Exit cancellation mutation failed", [error]);
+      showAlert({ title: "Failed to Cancel Exit", description: error.message });
+      await queryClient.invalidateQueries({ queryKey: ["exit-overview"] });
     },
   });
 }

@@ -88,6 +88,18 @@ export const startExitForVtxos = async (vtxoIds: string[]): Promise<Result<void,
   return result;
 };
 
+export const cancelExit = async (vtxoId: string): Promise<Result<void, Error>> => {
+  log.i("Canceling exit", [{ vtxo_id: vtxoId }]);
+  const result = await ResultAsync.fromPromise(NitroArk.cancelExit(vtxoId), (e) => e as Error);
+
+  if (result.isErr()) {
+    log.e("Failed to cancel exit", [{ vtxo_id: vtxoId }, result.error]);
+  } else {
+    log.i("Canceled exit", [{ vtxo_id: vtxoId }]);
+  }
+  return result;
+};
+
 export const syncExit = async (): Promise<Result<void, Error>> => {
   log.d("Syncing exits with progress allowed");
   const result = await ResultAsync.fromPromise(NitroArk.syncExit(), (e) => e as Error);
