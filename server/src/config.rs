@@ -1,9 +1,56 @@
 use anyhow::{Context, Result};
 use bitcoin::Network;
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
 
 pub const ARK_USER_AGENT: &str = concat!("noah-server/", env!("CARGO_PKG_VERSION"));
+
+const BARKD_MAINNET_HOST: &str = "noah-barkd-mainnet.internal";
+const BARKD_SIGNET_HOST: &str = "noah-barkd-signet.internal";
+const BARKD_PORT: u16 = 3000;
+
+fn validate_barkd_url(network: Network, url: &reqwest::Url) -> Result<()> {
+    if url.scheme() != "http"
+        || url.cannot_be_a_base()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        anyhow::bail!("BARKD_URL must be an HTTP origin without credentials, path, or query");
+    }
+
+    let host = url.host_str().context("BARKD_URL must include a host")?;
+    match network {
+        Network::Bitcoin => {
+            if host != BARKD_MAINNET_HOST || url.port() != Some(BARKD_PORT) {
+                anyhow::bail!("mainnet BARKD_URL must be http://{BARKD_MAINNET_HOST}:{BARKD_PORT}");
+            }
+        }
+        Network::Signet => {
+            if host != BARKD_SIGNET_HOST || url.port() != Some(BARKD_PORT) {
+                anyhow::bail!("signet BARKD_URL must be http://{BARKD_SIGNET_HOST}:{BARKD_PORT}");
+            }
+        }
+        Network::Regtest => {
+            let host_without_ipv6_brackets = host
+                .strip_prefix('[')
+                .and_then(|host| host.strip_suffix(']'))
+                .unwrap_or(host);
+            let is_loopback = host == "localhost"
+                || host_without_ipv6_brackets
+                    .parse::<IpAddr>()
+                    .is_ok_and(|address| address.is_loopback());
+            if !is_loopback {
+                anyhow::bail!("regtest BARKD_URL must use localhost or a loopback IP address");
+            }
+        }
+        _ => anyhow::bail!("forwarded barkd invoices are not supported on {network}"),
+    }
+
+    Ok(())
+}
 
 /// Configuration for the Noah server
 ///
@@ -195,11 +242,9 @@ impl Config {
                 .as_deref()
                 .filter(|value| !value.trim().is_empty())
                 .context("BARKD_URL is required when forwarded invoices are enabled")?;
-            let barkd_url = reqwest::Url::parse(barkd_url)
-                .context("BARKD_URL must be a valid HTTP or HTTPS URL")?;
-            if !matches!(barkd_url.scheme(), "http" | "https") || barkd_url.cannot_be_a_base() {
-                anyhow::bail!("BARKD_URL must be a valid HTTP or HTTPS URL");
-            }
+            let barkd_url =
+                reqwest::Url::parse(barkd_url).context("BARKD_URL must be a valid URL")?;
+            validate_barkd_url(self.network()?, &barkd_url)?;
             self.barkd_auth_token
                 .as_deref()
                 .filter(|value| !value.trim().is_empty())
@@ -325,5 +370,55 @@ impl Config {
             self.barkd_request_timeout_seconds
         );
         tracing::debug!("============================");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bitcoin::Network;
+
+    use super::validate_barkd_url;
+
+    fn validate(network: Network, url: &str) -> bool {
+        validate_barkd_url(network, &reqwest::Url::parse(url).unwrap()).is_ok()
+    }
+
+    #[test]
+    fn production_barkd_urls_are_pinned_to_the_private_fly_apps() {
+        assert!(validate(
+            Network::Bitcoin,
+            "http://noah-barkd-mainnet.internal:3000"
+        ));
+        assert!(validate(
+            Network::Signet,
+            "http://noah-barkd-signet.internal:3000/"
+        ));
+
+        for (network, url) in [
+            (Network::Bitcoin, "https://noah-barkd-mainnet.internal:3000"),
+            (Network::Bitcoin, "http://noah-barkd-mainnet.internal"),
+            (Network::Bitcoin, "http://noah-barkd-signet.internal:3000"),
+            (Network::Signet, "http://example.com:3000"),
+            (
+                Network::Signet,
+                "http://noah-barkd-signet.internal:3000/api",
+            ),
+            (
+                Network::Signet,
+                "http://token@noah-barkd-signet.internal:3000",
+            ),
+        ] {
+            assert!(!validate(network, url), "accepted unsafe barkd URL: {url}");
+        }
+    }
+
+    #[test]
+    fn regtest_barkd_urls_are_limited_to_loopback_hosts() {
+        assert!(validate(Network::Regtest, "http://localhost:3000"));
+        assert!(validate(Network::Regtest, "http://127.0.0.1:3100"));
+        assert!(validate(Network::Regtest, "http://[::1]:3200"));
+        assert!(!validate(Network::Regtest, "http://192.168.1.10:3000"));
+        assert!(!validate(Network::Regtest, "https://localhost:3000"));
+        assert!(!validate(Network::Testnet, "http://localhost:3000"));
     }
 }

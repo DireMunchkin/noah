@@ -54,6 +54,7 @@ impl BarkdClient {
         let client = reqwest::Client::builder()
             .connect_timeout(request_timeout)
             .timeout(request_timeout)
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .context("failed to build barkd HTTP client")?;
 
