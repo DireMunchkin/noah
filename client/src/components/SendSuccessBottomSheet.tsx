@@ -109,11 +109,12 @@ const ReceiptCopyRow = ({
 }) => {
   const { copyWithState, isCopied } = useCopyToClipboard(1200);
   const copied = isCopied(copyId);
+  const displayedValue = truncateValue(value);
 
   return (
     <Pressable
-      accessibilityHint="Copies this receipt detail to the clipboard"
-      accessibilityLabel={`Copy ${label}`}
+      accessibilityHint="Copies the full receipt detail to the clipboard"
+      accessibilityLabel={`Copy ${label}: ${displayedValue}`}
       accessibilityRole="button"
       onPress={() => copyWithState(value, copyId)}
       className="flex-row items-start justify-between gap-3 py-2"
@@ -126,7 +127,7 @@ const ReceiptCopyRow = ({
           {label}
         </Text>
         <Text className="mt-1 font-mono text-xs leading-5" style={{ color: PAPER_INK }}>
-          {truncateValue(value)}
+          {displayedValue}
         </Text>
       </View>
       <Text
@@ -299,10 +300,7 @@ export const SendSuccessBottomSheet: React.FC<SendSuccessBottomSheetProps> = ({
           }}
         />
 
-        <View
-          className="-mt-1 z-30 w-full items-center overflow-hidden"
-          style={{ height: proofValue ? 470 : 410 }}
-        >
+        <View className="-mt-1 z-30 w-full items-center overflow-hidden pb-2">
           <Animated.View
             className="w-[80%] px-5 pt-7 pb-9"
             style={[
