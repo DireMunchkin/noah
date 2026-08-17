@@ -77,6 +77,7 @@ services:
     volumes:
       - captaind:/data/captaind
       - ./captaind.toml:/data/captaind/captaind.toml
+      - watchmand:/data/watchmand
       - ./watchmand.toml:/data/watchmand/watchmand.toml
       - postgres:/var/lib/postgresql/data
       - cln:/data/cln
@@ -162,6 +163,7 @@ services:
 
 volumes:
   captaind:
+  watchmand:
   bark:
   cln:
   bitcoind:
