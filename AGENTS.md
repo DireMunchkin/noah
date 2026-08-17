@@ -76,8 +76,7 @@ It is intentionally operational: where code lives, how the runtime behaves, and 
 
 ### Mobile app execution policy for autonomous agents
 
-- Do not start Android/iOS apps locally as part of autonomous workflow.
-- Do not run simulator/emulator commands like `just android`, `just ios`, or variant-specific equivalents.
+- Feel free to run simulator/emulator commands like `just android`, `just ios`, or variant-specific equivalents to test app behavior.
 - Rely on GitHub Actions client pipelines for platform builds (Android and iOS).
 
 ### Server run commands

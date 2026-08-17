@@ -10,7 +10,6 @@ Operate Noah's local Ark regtest stack from the repository root. Use the `just` 
 ## Protect local state
 
 - Stay on regtest. Never substitute signet or mainnet endpoints, invoices, or addresses.
-- Do not launch Android or iOS apps or simulators. Interact with an already-running simulator through an available UI-control tool when the test requires app input.
 - Inspect service state before changing it:
 
   ```bash
@@ -44,12 +43,12 @@ If setup is missing, report that `just setup-everything` is available and explai
 
 Treat the amount syntax as part of the command contract:
 
-| Rail | Required form | Example |
-| --- | --- | --- |
-| Ark through Bark | quoted amount with unit | `"1234 sats"` |
+| Rail                   | Required form           | Example       |
+| ---------------------- | ----------------------- | ------------- |
+| Ark through Bark       | quoted amount with unit | `"1234 sats"` |
 | Lightning through Bark | quoted amount with unit | `"1234 sats"` |
-| Bitcoin Core on-chain | decimal BTC | `0.01` |
-| Block generation | integer block count | `6` |
+| Bitcoin Core on-chain  | decimal BTC             | `0.01`        |
+| Block generation       | integer block count     | `6`           |
 
 Never silently convert between sats and BTC. Ask when the requested amount or rail is ambiguous.
 
