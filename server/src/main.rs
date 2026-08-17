@@ -264,7 +264,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
     // Create rate limiters
     let public_rate_limiter = rate_limit::create_public_rate_limiter();
     let auth_login_rate_limiter = rate_limit::create_public_rate_limiter();
-    let lnurl_rate_limiter = rate_limit::create_public_rate_limiter();
+    let lnurl_rate_limiter = rate_limit::create_lnurl_rate_limiter();
     let auth_rate_limiter = rate_limit::create_auth_rate_limiter();
     let fiat_rate_limiter = rate_limit::create_fiat_rate_limiter();
 
