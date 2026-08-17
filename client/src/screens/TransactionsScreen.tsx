@@ -18,8 +18,14 @@ import { useProfileStore } from "~/store/profileStore";
 import { useBitcoinAmountFormatter } from "~/hooks/useBitcoinAmountFormatter";
 import { NativeNoahIconButton } from "~/components/ui/NativeNoahIconButton";
 import { NativeNoahSegmentedControl } from "~/components/ui/NativeNoahSegmentedControl";
-import { getTransactionDisplayLabel, isInternalBoardingTransfer } from "~/lib/transactionHistory";
+import {
+  getTransactionAccountingValues,
+  getTransactionDisplayLabel,
+  isCanceledTransaction,
+  isInternalBoardingTransfer,
+} from "~/lib/transactionHistory";
 import { formatMovementStatusLabel } from "~/types/movement";
+import { useThemeColors } from "~/hooks/useTheme";
 
 const log = logger("TransactionsScreen");
 
@@ -34,6 +40,7 @@ const TRANSACTION_FILTER_OPTIONS = [
 
 const TransactionsScreen = () => {
   const formatBitcoinAmount = useBitcoinAmountFormatter();
+  const { mutedForeground } = useThemeColors();
   const { data: transactions = [], isLoading, isError, isRefetching, refetch } = useTransactions();
   const fiatCurrency = useProfileStore((state) => state.preferredCurrency);
   const [filter, setFilter] = useState<TransactionFilter>("all");
@@ -64,17 +71,7 @@ const TransactionsScreen = () => {
           transaction.dateLabel ?? new Date(transaction.date).toISOString().split("T")[0];
         const type = getTransactionDisplayLabel(transaction);
         const status = formatMovementStatusLabel(transaction.movementStatus) ?? "";
-        const isTransfer = isInternalBoardingTransfer(transaction);
-        const direction = isTransfer
-          ? "Transfer"
-          : transaction.direction === "outgoing"
-            ? "Outgoing"
-            : "Incoming";
-        const amount = isTransfer
-          ? transaction.amount
-          : transaction.direction === "outgoing"
-            ? -transaction.amount
-            : transaction.amount;
+        const { direction, amount } = getTransactionAccountingValues(transaction);
         const id = transaction.id;
         const btcPrice = transaction.btcPrice;
         const txid = transaction.txid || "";
@@ -199,6 +196,7 @@ const TransactionsScreen = () => {
               data={filteredTransactions}
               renderItem={({ item }: { item: Transaction }) => {
                 const isTransfer = isInternalBoardingTransfer(item);
+                const isCanceled = isCanceledTransaction(item);
                 const movementStatus = formatMovementStatusLabel(item.movementStatus);
 
                 return (
@@ -215,7 +213,13 @@ const TransactionsScreen = () => {
                           name={getIconForTransaction(item)}
                           size={24}
                           color={
-                            isTransfer ? "#f97316" : item.direction === "outgoing" ? "red" : "green"
+                            isCanceled
+                              ? mutedForeground
+                              : isTransfer
+                                ? "#f97316"
+                                : item.direction === "outgoing"
+                                  ? "red"
+                                  : "green"
                           }
                         />
                       </View>
@@ -234,14 +238,16 @@ const TransactionsScreen = () => {
                         <View className="shrink-0 items-end">
                           <Text
                             className={`text-base font-bold ${
-                              isTransfer
-                                ? "text-orange-500"
-                                : item.direction === "outgoing"
-                                  ? "text-red-500"
-                                  : "text-green-500"
+                              isCanceled
+                                ? "text-muted-foreground"
+                                : isTransfer
+                                  ? "text-orange-500"
+                                  : item.direction === "outgoing"
+                                    ? "text-red-500"
+                                    : "text-green-500"
                             }`}
                           >
-                            {`${isTransfer ? "" : item.direction === "outgoing" ? "-" : "+"}${formatBitcoinAmount(item.amount)}`}
+                            {`${isCanceled || isTransfer ? "" : item.direction === "outgoing" ? "-" : "+"}${formatBitcoinAmount(item.amount)}`}
                           </Text>
                           {movementStatus ? (
                             <Text className="mt-1 text-xs text-muted-foreground">

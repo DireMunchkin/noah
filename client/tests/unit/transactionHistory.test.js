@@ -3,7 +3,9 @@ import { describe, expect, test } from "bun:test";
 import {
   getBoardingMovementAmount,
   getMovementTransactionId,
+  getTransactionAccountingValues,
   getTransactionDisplayLabel,
+  isCanceledTransaction,
   isInternalBoardingTransfer,
   mergeBoardingWithOnchainTransactions,
   parseMovementMetadata,
@@ -116,5 +118,47 @@ describe("unified transaction history", () => {
   test("treats boards as internal transfers but preserves offboards as outgoing sends", () => {
     expect(isInternalBoardingTransfer({ type: "Onchain", movementKind: "onboard" })).toBe(true);
     expect(isInternalBoardingTransfer({ type: "Onchain", movementKind: "offboard" })).toBe(false);
+  });
+
+  test("presents a canceled exit as neutral activity", () => {
+    const canceledExit = {
+      type: "Onchain",
+      movementKind: "exit",
+      movementStatus: "canceled",
+      direction: "outgoing",
+      amount: 92_590,
+    };
+
+    expect(isCanceledTransaction(canceledExit)).toBe(true);
+    expect(getTransactionDisplayLabel(canceledExit)).toBe("Canceled Ark Exit");
+    expect(getTransactionAccountingValues(canceledExit)).toEqual({
+      direction: "None",
+      amount: 0,
+    });
+    expect(
+      getTransactionDisplayLabel({
+        type: "Bolt11",
+        movementStatus: "canceled",
+      }),
+    ).toBe("Canceled Lightning");
+  });
+
+  test("preserves signed accounting values for completed activity", () => {
+    expect(
+      getTransactionAccountingValues({
+        type: "Arkoor",
+        direction: "outgoing",
+        amount: 21_000,
+      }),
+    ).toEqual({ direction: "Outgoing", amount: -21_000 });
+
+    expect(
+      getTransactionAccountingValues({
+        type: "Onchain",
+        movementKind: "onboard",
+        direction: "incoming",
+        amount: 50_000,
+      }),
+    ).toEqual({ direction: "Transfer", amount: 50_000 });
   });
 });

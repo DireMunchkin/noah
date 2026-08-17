@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { AlertCircle, ChevronDown, Eye, EyeOff, PauseCircle } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { COLORS } from "../lib/styleConstants";
-import { useIconColor } from "../hooks/useTheme";
+import { useThemeColors } from "../hooks/useTheme";
 import { NoahActivityIndicator } from "../components/ui/NoahActivityIndicator";
 import { useBalance, useLoadWallet, useWalletSync } from "../hooks/useWallet";
 import Icon from "@react-native-vector-icons/ionicons";
@@ -45,7 +45,11 @@ import { usePrivacyStore } from "~/store/privacyStore";
 import { useProfileStore } from "~/store/profileStore";
 import { useBitcoinAmountFormatter } from "~/hooks/useBitcoinAmountFormatter";
 import { NativeHomeHeaderActions } from "~/components/ui/NativeHomeHeaderActions";
-import { getTransactionDisplayLabel, isInternalBoardingTransfer } from "~/lib/transactionHistory";
+import {
+  getTransactionDisplayLabel,
+  isCanceledTransaction,
+  isInternalBoardingTransfer,
+} from "~/lib/transactionHistory";
 
 const getTransactionIcon = (transaction: Transaction) => {
   if (transaction.movementKind === "onboard") {
@@ -71,7 +75,7 @@ const getTransactionIcon = (transaction: Transaction) => {
 
 const HomeScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
-  const iconColor = useIconColor();
+  const { foreground: iconColor, mutedForeground } = useThemeColors();
   const formatBitcoinAmount = useBitcoinAmountFormatter();
   const parentNavigation = navigation.getParent<NavigationProp<TabParamList>>();
   const { walletError, isWalletSuspended } = useWalletStore();
@@ -411,52 +415,61 @@ const HomeScreen = () => {
                       </Text>
                     </View>
                   ) : (
-                    recentTransactions.map((transaction, index) => (
-                      <Pressable
-                        key={transaction.id}
-                        onPress={() => openTransaction(transaction)}
-                        className={`flex-row items-center py-3 ${
-                          index < recentTransactions.length - 1 ? "border-b border-border/60" : ""
-                        }`}
-                      >
-                        <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-background">
-                          <Icon
-                            name={getTransactionIcon(transaction)}
-                            size={20}
-                            color={
-                              isInternalBoardingTransfer(transaction)
-                                ? "#f97316"
-                                : transaction.direction === "outgoing"
-                                  ? "#ef4444"
-                                  : "#22c55e"
-                            }
-                          />
-                        </View>
-                        <View className="min-w-0 flex-1">
-                          <Text className="text-sm font-semibold text-foreground">
-                            {getTransactionDisplayLabel(transaction)}
-                          </Text>
-                          <Text className="mt-1 text-xs text-muted-foreground">
-                            {transaction.dateLabel ??
-                              new Date(transaction.date).toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                              })}
-                          </Text>
-                        </View>
-                        <Text
-                          className={`text-sm font-bold ${
-                            isInternalBoardingTransfer(transaction)
-                              ? "text-orange-500"
-                              : transaction.direction === "outgoing"
-                                ? "text-red-500"
-                                : "text-green-500"
+                    recentTransactions.map((transaction, index) => {
+                      const isCanceled = isCanceledTransaction(transaction);
+                      const isTransfer = isInternalBoardingTransfer(transaction);
+
+                      return (
+                        <Pressable
+                          key={transaction.id}
+                          onPress={() => openTransaction(transaction)}
+                          className={`flex-row items-center py-3 ${
+                            index < recentTransactions.length - 1 ? "border-b border-border/60" : ""
                           }`}
                         >
-                          {`${isInternalBoardingTransfer(transaction) ? "" : transaction.direction === "outgoing" ? "-" : "+"}${formatBitcoinAmount(transaction.amount)}`}
-                        </Text>
-                      </Pressable>
-                    ))
+                          <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-background">
+                            <Icon
+                              name={getTransactionIcon(transaction)}
+                              size={20}
+                              color={
+                                isCanceled
+                                  ? mutedForeground
+                                  : isTransfer
+                                    ? "#f97316"
+                                    : transaction.direction === "outgoing"
+                                      ? "#ef4444"
+                                      : "#22c55e"
+                              }
+                            />
+                          </View>
+                          <View className="min-w-0 flex-1">
+                            <Text className="text-sm font-semibold text-foreground">
+                              {getTransactionDisplayLabel(transaction)}
+                            </Text>
+                            <Text className="mt-1 text-xs text-muted-foreground">
+                              {transaction.dateLabel ??
+                                new Date(transaction.date).toLocaleDateString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                            </Text>
+                          </View>
+                          <Text
+                            className={`text-sm font-bold ${
+                              isCanceled
+                                ? "text-muted-foreground"
+                                : isTransfer
+                                  ? "text-orange-500"
+                                  : transaction.direction === "outgoing"
+                                    ? "text-red-500"
+                                    : "text-green-500"
+                            }`}
+                          >
+                            {`${isCanceled || isTransfer ? "" : transaction.direction === "outgoing" ? "-" : "+"}${formatBitcoinAmount(transaction.amount)}`}
+                          </Text>
+                        </Pressable>
+                      );
+                    })
                   )}
                 </View>
               </View>
