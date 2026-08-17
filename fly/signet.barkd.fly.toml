@@ -12,6 +12,9 @@ kill_timeout = "30s"
   strategy = "rolling"
   wait_timeout = "10m"
 
+[[restart]]
+  policy = "always"
+
 [env]
   BARKD_DATADIR = "/data"
   BARKD_BIND_HOST = "::"
