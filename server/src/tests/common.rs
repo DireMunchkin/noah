@@ -9,6 +9,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::app_middleware::{auth_middleware, user_exists_middleware};
 use crate::auth::mint_access_token;
+use crate::barkd_client::ForwardingInvoiceProvider;
 use crate::cache::{
     email_verification_store::EmailVerificationStore, invoice_store::InvoiceStore,
     k1_store::K1Store, maintenance_store::MaintenanceStore, redis_client::RedisClient,
@@ -171,6 +172,7 @@ pub async fn setup_test_app() -> (Router, AppState, TestDbGuard) {
         email_verification_store,
         email_client,
         maintenance_store,
+        barkd_invoice_provider: None,
         config: Arc::new(TestUser::get_config()),
     });
 
@@ -237,6 +239,12 @@ pub async fn setup_test_app() -> (Router, AppState, TestDbGuard) {
 }
 
 pub async fn setup_public_test_app() -> (Router, AppState, TestDbGuard) {
+    setup_public_test_app_with_barkd(None).await
+}
+
+pub async fn setup_public_test_app_with_barkd(
+    barkd_invoice_provider: Option<Arc<dyn ForwardingInvoiceProvider>>,
+) -> (Router, AppState, TestDbGuard) {
     let guard = acquire_test_db_guard().await;
 
     let db_pool = setup_test_database().await;
@@ -259,6 +267,7 @@ pub async fn setup_public_test_app() -> (Router, AppState, TestDbGuard) {
         email_verification_store,
         email_client,
         maintenance_store,
+        barkd_invoice_provider,
         config: Arc::new(TestUser::get_config()),
     });
 

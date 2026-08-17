@@ -6,6 +6,7 @@ use axum::{
     routing::{get, post},
 };
 mod auth;
+mod barkd_client;
 mod cache;
 mod config;
 mod routes;
@@ -20,6 +21,7 @@ use std::{net::SocketAddr, sync::Arc};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
+    barkd_client::{ForwardingInvoiceProvider, build_forwarding_invoice_provider},
     cache::{
         email_verification_store::EmailVerificationStore, invoice_store::InvoiceStore,
         k1_store::K1Store, maintenance_store::MaintenanceStore, redis_client::RedisClient,
@@ -83,6 +85,7 @@ pub struct AppStruct {
     pub email_verification_store: EmailVerificationStore,
     pub email_client: EmailClient,
     pub maintenance_store: MaintenanceStore,
+    pub barkd_invoice_provider: Option<Arc<dyn ForwardingInvoiceProvider>>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -174,6 +177,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
     let email_client =
         EmailClient::new(config.ses_from_address.clone(), config.email_dev_mode).await?;
     tracing::info!("Email client initialized");
+    let barkd_invoice_provider = build_forwarding_invoice_provider(&config)?;
 
     let app_state = Arc::new(AppStruct {
         config: Arc::new(config.clone()),
@@ -185,6 +189,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
         email_verification_store,
         email_client,
         maintenance_store,
+        barkd_invoice_provider,
     });
 
     config.log_config();

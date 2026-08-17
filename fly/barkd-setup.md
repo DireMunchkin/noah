@@ -80,6 +80,14 @@ fly secrets set --app noah-signet \
   BARKD_URL=http://noah-barkd-signet.internal:3000
 ```
 
+Leave `BARKD_FORWARDED_INVOICES_ENABLED` unset or `false` until wallet initialization and signet
+testing are complete. Enable it separately so token/URL installation cannot begin serving invoices
+accidentally:
+
+```sh
+fly secrets set --app noah-signet BARKD_FORWARDED_INVOICES_ENABLED=true
+```
+
 Do not disable barkd authentication. The private network limits reachability; bearer authentication
 still limits which workloads on that network can control the wallet.
 

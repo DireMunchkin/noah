@@ -1,19 +1,86 @@
+use std::sync::{Arc, Mutex};
+
+use crate::barkd_client::{ForwardingInvoice, ForwardingInvoiceProvider};
 use crate::db::{
     fiat_rate_repo::FiatRateRepository, mailbox_authorization_repo::MailboxAuthorizationRepository,
     push_token_repo::PushTokenRepository, user_repo::UserRepository,
 };
 use crate::routes::public_api_v0::{GetK1, LnurlpDefaultResponse, LnurlpInvoiceResponse};
-use crate::tests::common::{TestUser, create_test_user, setup_public_test_app, setup_test_app};
+use crate::tests::common::{
+    TestUser, create_test_user, setup_public_test_app, setup_public_test_app_with_barkd,
+    setup_test_app,
+};
 use crate::types::{
     ApiErrorResponse, AppVersionCheckPayload, AppVersionInfo, FiatPricesPayload,
     FiatPricesResponse, HistoricalFiatPricePayload, HistoricalFiatPriceResponse, UserStatus,
 };
+use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{self, Request, StatusCode};
 use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 use chrono::Utc;
 use http_body_util::BodyExt;
 use tower::ServiceExt;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ForwardingInvoiceCall {
+    address: String,
+    amount_sat: u64,
+    description: Option<String>,
+}
+
+enum ForwardingInvoiceResult {
+    Invoice(String),
+    Error,
+}
+
+struct TestForwardingInvoiceProvider {
+    result: ForwardingInvoiceResult,
+    calls: Mutex<Vec<ForwardingInvoiceCall>>,
+}
+
+impl TestForwardingInvoiceProvider {
+    fn returning(invoice: &str) -> Self {
+        Self {
+            result: ForwardingInvoiceResult::Invoice(invoice.to_string()),
+            calls: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn failing() -> Self {
+        Self {
+            result: ForwardingInvoiceResult::Error,
+            calls: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn calls(&self) -> Vec<ForwardingInvoiceCall> {
+        self.calls.lock().unwrap().clone()
+    }
+}
+
+#[async_trait]
+impl ForwardingInvoiceProvider for TestForwardingInvoiceProvider {
+    async fn create_invoice_for_address(
+        &self,
+        address: &str,
+        amount_sat: u64,
+        description: Option<&str>,
+    ) -> anyhow::Result<ForwardingInvoice> {
+        self.calls.lock().unwrap().push(ForwardingInvoiceCall {
+            address: address.to_string(),
+            amount_sat,
+            description: description.map(str::to_string),
+        });
+
+        match &self.result {
+            ForwardingInvoiceResult::Invoice(invoice) => Ok(ForwardingInvoice {
+                invoice: invoice.clone(),
+            }),
+            ForwardingInvoiceResult::Error => anyhow::bail!("test barkd failure"),
+        }
+    }
+}
 
 fn test_ark_address(server_key_byte: u8) -> (PublicKey, String) {
     let secp = Secp256k1::new();
@@ -207,6 +274,164 @@ async fn test_lnurlp_invoice_request_returns_matching_ark_address_without_mailbo
 
     assert_eq!(res.pr, "");
     assert_eq!(res.ark.as_deref(), Some(ark_address.as_str()));
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_lnurlp_invoice_request_uses_barkd_without_waking_device() {
+    let barkd = Arc::new(TestForwardingInvoiceProvider::returning("lnbc-forwarded"));
+    let (app, app_state, _guard) = setup_public_test_app_with_barkd(Some(barkd.clone())).await;
+    let (_, ark_address) = test_ark_address(0x11);
+
+    sqlx::query("INSERT INTO users (pubkey, lightning_address, ark_address) VALUES ($1, $2, $3)")
+        .bind("test_pubkey")
+        .bind("test@localhost")
+        .bind(&ark_address)
+        .execute(&app_state.db_pool)
+        .await
+        .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri("/.well-known/lnurlp/test?amount=330000")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let res: LnurlpInvoiceResponse = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(res.pr, "lnbc-forwarded");
+    assert_eq!(res.ark.as_deref(), Some(ark_address.as_str()));
+    assert_eq!(
+        barkd.calls(),
+        vec![ForwardingInvoiceCall {
+            address: ark_address,
+            amount_sat: 330,
+            description: Some("Paying satoshis to test@localhost".to_string()),
+        }]
+    );
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_lnurlp_invoice_request_prefers_negotiated_ark_over_barkd() {
+    let barkd = Arc::new(TestForwardingInvoiceProvider::returning("lnbc-forwarded"));
+    let (app, app_state, _guard) = setup_public_test_app_with_barkd(Some(barkd.clone())).await;
+    let (server_pubkey, ark_address) = test_ark_address(0x11);
+    *app_state.ark_server_pubkey.write().await = Some(server_pubkey.to_string());
+
+    sqlx::query("INSERT INTO users (pubkey, lightning_address, ark_address) VALUES ($1, $2, $3)")
+        .bind("test_pubkey")
+        .bind("test@localhost")
+        .bind(&ark_address)
+        .execute(&app_state.db_pool)
+        .await
+        .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri(format!(
+                    "/.well-known/lnurlp/test?amount=330000&ark={server_pubkey}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let res: LnurlpInvoiceResponse = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(res.pr, "");
+    assert_eq!(res.ark.as_deref(), Some(ark_address.as_str()));
+    assert!(barkd.calls().is_empty());
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_lnurlp_invoice_request_rejects_sub_sat_amount_before_barkd() {
+    let barkd = Arc::new(TestForwardingInvoiceProvider::returning("lnbc-forwarded"));
+    let (app, app_state, _guard) = setup_public_test_app_with_barkd(Some(barkd.clone())).await;
+    let (_, ark_address) = test_ark_address(0x11);
+
+    sqlx::query("INSERT INTO users (pubkey, lightning_address, ark_address) VALUES ($1, $2, $3)")
+        .bind("test_pubkey")
+        .bind("test@localhost")
+        .bind(ark_address)
+        .execute(&app_state.db_pool)
+        .await
+        .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri("/.well-known/lnurlp/test?amount=330001")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let err: ApiErrorResponse = serde_json::from_slice(&body).unwrap();
+    assert_eq!(err.code, "INVALID_ARGUMENT");
+    assert_eq!(
+        err.message,
+        "Invoice amount must be a whole number of satoshis"
+    );
+    assert!(barkd.calls().is_empty());
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_lnurlp_invoice_request_falls_back_when_barkd_fails() {
+    let barkd = Arc::new(TestForwardingInvoiceProvider::failing());
+    let (app, app_state, _guard) = setup_public_test_app_with_barkd(Some(barkd.clone())).await;
+    let (_, ark_address) = test_ark_address(0x11);
+
+    sqlx::query("INSERT INTO users (pubkey, lightning_address, ark_address) VALUES ($1, $2, $3)")
+        .bind("test_pubkey")
+        .bind("test@localhost")
+        .bind(ark_address)
+        .execute(&app_state.db_pool)
+        .await
+        .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri("/.well-known/lnurlp/test?amount=330000")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let err: ApiErrorResponse = serde_json::from_slice(&body).unwrap();
+    assert_eq!(err.code, "INVALID_ARGUMENT");
+    assert_eq!(
+        err.message,
+        "Lightning payments are not supported on this device right now."
+    );
+    assert_eq!(barkd.calls().len(), 1);
 }
 
 #[tracing_test::traced_test]

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -6,6 +7,8 @@ use bitcoin::Network;
 use lightning_invoice::Bolt11Invoice;
 use reqwest::header::{AUTHORIZATION, HeaderValue};
 use serde::{Deserialize, Serialize};
+
+use crate::config::Config;
 
 const CREATE_INVOICE_FOR_ADDRESS_PATH: &str = "api/v1/lightning/receives/invoice/for-address";
 const ARK_INFO_PATH: &str = "api/v1/wallet/ark-info";
@@ -82,6 +85,30 @@ impl BarkdClient {
             .join(path)
             .context("failed to build barkd endpoint URL")
     }
+}
+
+pub fn build_forwarding_invoice_provider(
+    config: &Config,
+) -> Result<Option<Arc<dyn ForwardingInvoiceProvider>>> {
+    if !config.barkd_forwarded_invoices_enabled {
+        return Ok(None);
+    }
+
+    let base_url = config
+        .barkd_url
+        .as_deref()
+        .context("BARKD_URL is required when forwarded invoices are enabled")?;
+    let auth_token = config
+        .barkd_auth_token
+        .as_deref()
+        .context("BARKD_AUTH_TOKEN is required when forwarded invoices are enabled")?;
+    let client = BarkdClient::new(
+        base_url,
+        auth_token,
+        Duration::from_secs(config.barkd_request_timeout_seconds),
+    )?;
+
+    Ok(Some(Arc::new(client)))
 }
 
 #[derive(Debug, Serialize)]
