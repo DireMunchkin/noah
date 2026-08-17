@@ -105,6 +105,7 @@ pub fn build_forwarding_invoice_provider(
     let client = BarkdClient::new(
         base_url,
         auth_token,
+        config.network()?,
         Duration::from_secs(config.barkd_request_timeout_seconds),
     )?;
 
