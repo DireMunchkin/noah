@@ -14,6 +14,7 @@ primary_region = "iad"
   wait_timeout = "10m"
 
 [env]
+  BARKD_FORWARDED_INVOICES_ENABLED = "true"
   LNURL_DOMAIN = "noahwallet.io"
   SERVER_NETWORK = "bitcoin"
   MAILBOX_WORKER_CONCURRENCY_LIMIT = "600"
