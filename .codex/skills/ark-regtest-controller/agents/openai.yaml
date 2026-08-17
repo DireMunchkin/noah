@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ark Regtest Controller"
+  short_description: "Control Noah’s local Ark regtest network"
+  default_prompt: "Use $ark-regtest-controller to exercise a payment flow in Noah’s local regtest environment."
