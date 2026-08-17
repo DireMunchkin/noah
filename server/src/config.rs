@@ -11,6 +11,7 @@ pub const ARK_USER_AGENT: &str = concat!("noah-server/", env!("CARGO_PKG_VERSION
 /// - `HOST`, `PORT`, `PRIVATE_PORT`
 /// - `POSTGRES_URL`, `REDIS_URL`
 /// - `EXPO_ACCESS_TOKEN`, `ARK_SERVER_URL`
+/// - `BARKD_FORWARDED_INVOICES_ENABLED`, `BARKD_URL`, `BARKD_AUTH_TOKEN`
 /// - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -43,6 +44,10 @@ pub struct Config {
     pub email_dev_mode: bool,
     pub auth_jwt_secret: String,
     pub auth_jwt_ttl_hours: u64,
+    pub barkd_forwarded_invoices_enabled: bool,
+    pub barkd_url: Option<String>,
+    pub barkd_auth_token: Option<String>,
+    pub barkd_request_timeout_seconds: u64,
     pub zoho_client_id: Option<String>,
     pub zoho_client_secret: Option<String>,
     pub zoho_refresh_token: Option<String>,
@@ -132,6 +137,15 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(72),
+            barkd_forwarded_invoices_enabled: std::env::var("BARKD_FORWARDED_INVOICES_ENABLED")
+                .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "True"))
+                .unwrap_or(false),
+            barkd_url: std::env::var("BARKD_URL").ok(),
+            barkd_auth_token: std::env::var("BARKD_AUTH_TOKEN").ok(),
+            barkd_request_timeout_seconds: std::env::var("BARKD_REQUEST_TIMEOUT_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10),
             zoho_client_id: std::env::var("ZOHO_CLIENT_ID").ok(),
             zoho_client_secret: std::env::var("ZOHO_CLIENT_SECRET").ok(),
             zoho_refresh_token: std::env::var("ZOHO_REFRESH_TOKEN").ok(),
@@ -174,6 +188,25 @@ impl Config {
         }
         if self.auth_jwt_secret.is_empty() {
             anyhow::bail!("AUTH_JWT_SECRET is required");
+        }
+        if self.barkd_forwarded_invoices_enabled {
+            let barkd_url = self
+                .barkd_url
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .context("BARKD_URL is required when forwarded invoices are enabled")?;
+            let barkd_url = reqwest::Url::parse(barkd_url)
+                .context("BARKD_URL must be a valid HTTP or HTTPS URL")?;
+            if !matches!(barkd_url.scheme(), "http" | "https") || barkd_url.cannot_be_a_base() {
+                anyhow::bail!("BARKD_URL must be a valid HTTP or HTTPS URL");
+            }
+            self.barkd_auth_token
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .context("BARKD_AUTH_TOKEN is required when forwarded invoices are enabled")?;
+            if self.barkd_request_timeout_seconds == 0 {
+                anyhow::bail!("BARKD_REQUEST_TIMEOUT_SECONDS must be greater than zero");
+            }
         }
         Ok(())
     }
@@ -267,6 +300,30 @@ impl Config {
         tracing::debug!("SES From Address: {}", self.ses_from_address);
         tracing::debug!("JWT Auth Secret: [REDACTED]");
         tracing::debug!("JWT TTL Hours: {}", self.auth_jwt_ttl_hours);
+        tracing::debug!(
+            "Barkd forwarded invoices: {}",
+            self.barkd_forwarded_invoices_enabled
+        );
+        tracing::debug!(
+            "Barkd URL: {}",
+            if self.barkd_url.is_some() {
+                "[SET]"
+            } else {
+                "[NOT SET]"
+            }
+        );
+        tracing::debug!(
+            "Barkd auth token: {}",
+            if self.barkd_auth_token.is_some() {
+                "[SET]"
+            } else {
+                "[NOT SET]"
+            }
+        );
+        tracing::debug!(
+            "Barkd request timeout seconds: {}",
+            self.barkd_request_timeout_seconds
+        );
         tracing::debug!("============================");
     }
 }
