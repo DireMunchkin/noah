@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use bitcoin::Network;
+use lightning_invoice::Bolt11Invoice;
 use reqwest::header::{AUTHORIZATION, HeaderValue};
 use serde::{Deserialize, Serialize};
 
@@ -27,10 +29,16 @@ pub struct BarkdClient {
     client: reqwest::Client,
     base_url: reqwest::Url,
     authorization: HeaderValue,
+    expected_network: Network,
 }
 
 impl BarkdClient {
-    pub fn new(base_url: &str, auth_token: &str, request_timeout: Duration) -> Result<Self> {
+    pub fn new(
+        base_url: &str,
+        auth_token: &str,
+        expected_network: Network,
+        request_timeout: Duration,
+    ) -> Result<Self> {
         if request_timeout.is_zero() {
             anyhow::bail!("barkd request timeout must be greater than zero");
         }
@@ -62,6 +70,7 @@ impl BarkdClient {
             client,
             base_url,
             authorization,
+            expected_network,
         })
     }
 
@@ -118,6 +127,26 @@ impl ForwardingInvoiceProvider for BarkdClient {
             anyhow::bail!("barkd invoice response was empty");
         }
 
+        let invoice: Bolt11Invoice = response
+            .invoice
+            .parse()
+            .context("barkd invoice response was not a valid BOLT11 invoice")?;
+        if invoice.network() != self.expected_network {
+            anyhow::bail!(
+                "barkd invoice network {} did not match expected network {}",
+                invoice.network(),
+                self.expected_network
+            );
+        }
+        let expected_amount_msat = amount_sat
+            .checked_mul(1000)
+            .context("barkd invoice amount exceeded the BOLT11 range")?;
+        if invoice.amount_milli_satoshis() != Some(expected_amount_msat) {
+            anyhow::bail!(
+                "barkd invoice amount did not match requested amount of {expected_amount_msat} msat"
+            );
+        }
+
         Ok(ForwardingInvoice {
             invoice: response.invoice,
         })
@@ -132,6 +161,10 @@ mod tests {
     use axum::http::{HeaderMap, StatusCode};
     use axum::response::IntoResponse;
     use axum::routing::post;
+    use bitcoin::Network;
+    use bitcoin::hashes::{Hash, sha256};
+    use bitcoin::secp256k1::{Secp256k1, SecretKey};
+    use lightning_invoice::{Currency, InvoiceBuilder, PaymentSecret};
     use serde::Deserialize;
     use serde_json::json;
 
@@ -153,37 +186,63 @@ mod tests {
         format!("http://{address}")
     }
 
+    fn test_invoice(network: Network, amount_msat: u64) -> String {
+        let private_key = SecretKey::from_slice(&[3; 32]).unwrap();
+        InvoiceBuilder::new(Currency::from(network))
+            .description("Test invoice".to_string())
+            .payment_hash(sha256::Hash::from_byte_array([1; 32]))
+            .payment_secret(PaymentSecret([2; 32]))
+            .current_timestamp()
+            .min_final_cltv_expiry_delta(18)
+            .amount_milli_satoshis(amount_msat)
+            .build_signed(|hash| Secp256k1::new().sign_ecdsa_recoverable(hash, &private_key))
+            .unwrap()
+            .to_string()
+    }
+
     #[tokio::test]
     async fn creates_an_authenticated_invoice_for_the_supplied_address() {
+        let invoice = test_invoice(Network::Signet, 330_000);
+        let response_invoice = invoice.clone();
         let app = Router::new().route(
             "/api/v1/lightning/receives/invoice/for-address",
             post(
-                |headers: HeaderMap,
-                 axum::Json(body): axum::Json<ReceivedInvoiceRequest>| async move {
-                    if headers.get("authorization").and_then(|value| value.to_str().ok())
-                        != Some("Bearer secret-token")
-                    {
-                        return StatusCode::UNAUTHORIZED.into_response();
+                move |headers: HeaderMap, axum::Json(body): axum::Json<ReceivedInvoiceRequest>| {
+                    let response_invoice = response_invoice.clone();
+                    async move {
+                        if headers
+                            .get("authorization")
+                            .and_then(|value| value.to_str().ok())
+                            != Some("Bearer secret-token")
+                        {
+                            return StatusCode::UNAUTHORIZED.into_response();
+                        }
+                        if body.address != "ark-address"
+                            || body.amount_sat != 330
+                            || body.description.as_deref() != Some("Paying test@noahwallet.io")
+                        {
+                            return StatusCode::BAD_REQUEST.into_response();
+                        }
+                        axum::Json(json!({ "invoice": response_invoice })).into_response()
                     }
-                    if body.address != "ark-address"
-                        || body.amount_sat != 330
-                        || body.description.as_deref() != Some("Paying test@noahwallet.io")
-                    {
-                        return StatusCode::BAD_REQUEST.into_response();
-                    }
-                    axum::Json(json!({ "invoice": "lnbc-test-invoice" })).into_response()
                 },
             ),
         );
         let base_url = spawn_server(app).await;
-        let client = BarkdClient::new(&base_url, "secret-token", Duration::from_secs(1)).unwrap();
+        let client = BarkdClient::new(
+            &base_url,
+            "secret-token",
+            Network::Signet,
+            Duration::from_secs(1),
+        )
+        .unwrap();
 
         let result = client
             .create_invoice_for_address("ark-address", 330, Some("Paying test@noahwallet.io"))
             .await
             .unwrap();
 
-        assert_eq!(result.invoice, "lnbc-test-invoice");
+        assert_eq!(result.invoice, invoice);
     }
 
     #[tokio::test]
@@ -198,7 +257,13 @@ mod tests {
             }),
         );
         let base_url = spawn_server(app).await;
-        let client = BarkdClient::new(&base_url, "secret-token", Duration::from_secs(1)).unwrap();
+        let client = BarkdClient::new(
+            &base_url,
+            "secret-token",
+            Network::Signet,
+            Duration::from_secs(1),
+        )
+        .unwrap();
 
         let error = client
             .create_invoice_for_address("ark-address", 330, None)
@@ -213,7 +278,11 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_invalid_or_empty_invoice_responses() {
-        for response in ["not-json", r#"{"invoice":""}"#] {
+        for response in [
+            "not-json",
+            r#"{"invoice":""}"#,
+            r#"{"invoice":"not-a-bolt11"}"#,
+        ] {
             let body = response.to_string();
             let app = Router::new().route(
                 "/api/v1/lightning/receives/invoice/for-address",
@@ -223,8 +292,13 @@ mod tests {
                 }),
             );
             let base_url = spawn_server(app).await;
-            let client =
-                BarkdClient::new(&base_url, "secret-token", Duration::from_secs(1)).unwrap();
+            let client = BarkdClient::new(
+                &base_url,
+                "secret-token",
+                Network::Signet,
+                Duration::from_secs(1),
+            )
+            .unwrap();
 
             assert!(
                 client
@@ -232,6 +306,37 @@ mod tests {
                     .await
                     .is_err()
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_invoices_for_the_wrong_amount_or_network() {
+        for (invoice, expected_error) in [
+            (test_invoice(Network::Signet, 329_000), "amount"),
+            (test_invoice(Network::Bitcoin, 330_000), "network"),
+        ] {
+            let app = Router::new().route(
+                "/api/v1/lightning/receives/invoice/for-address",
+                post(move || {
+                    let invoice = invoice.clone();
+                    async move { axum::Json(json!({ "invoice": invoice })) }
+                }),
+            );
+            let base_url = spawn_server(app).await;
+            let client = BarkdClient::new(
+                &base_url,
+                "secret-token",
+                Network::Signet,
+                Duration::from_secs(1),
+            )
+            .unwrap();
+
+            let error = client
+                .create_invoice_for_address("ark-address", 330, None)
+                .await
+                .unwrap_err();
+
+            assert!(error.to_string().contains(expected_error));
         }
     }
 
@@ -245,8 +350,13 @@ mod tests {
             }),
         );
         let base_url = spawn_server(app).await;
-        let client =
-            BarkdClient::new(&base_url, "secret-token", Duration::from_millis(10)).unwrap();
+        let client = BarkdClient::new(
+            &base_url,
+            "secret-token",
+            Network::Signet,
+            Duration::from_millis(10),
+        )
+        .unwrap();
 
         let error = client
             .create_invoice_for_address("ark-address", 330, None)
@@ -258,12 +368,44 @@ mod tests {
 
     #[test]
     fn validates_constructor_inputs() {
-        assert!(BarkdClient::new("not a URL", "token", Duration::from_secs(1)).is_err());
         assert!(
-            BarkdClient::new("http://localhost", "bad\ntoken", Duration::from_secs(1)).is_err()
+            BarkdClient::new(
+                "not a URL",
+                "token",
+                Network::Signet,
+                Duration::from_secs(1)
+            )
+            .is_err()
         );
-        assert!(BarkdClient::new("ftp://localhost", "token", Duration::from_secs(1)).is_err());
-        assert!(BarkdClient::new("http://localhost", " ", Duration::from_secs(1)).is_err());
-        assert!(BarkdClient::new("http://localhost", "token", Duration::ZERO).is_err());
+        assert!(
+            BarkdClient::new(
+                "http://localhost",
+                "bad\ntoken",
+                Network::Signet,
+                Duration::from_secs(1)
+            )
+            .is_err()
+        );
+        assert!(
+            BarkdClient::new(
+                "ftp://localhost",
+                "token",
+                Network::Signet,
+                Duration::from_secs(1)
+            )
+            .is_err()
+        );
+        assert!(
+            BarkdClient::new(
+                "http://localhost",
+                " ",
+                Network::Signet,
+                Duration::from_secs(1)
+            )
+            .is_err()
+        );
+        assert!(
+            BarkdClient::new("http://localhost", "token", Network::Signet, Duration::ZERO).is_err()
+        );
     }
 }

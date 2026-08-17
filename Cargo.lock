@@ -4936,6 +4936,7 @@ dependencies = [
  "hex",
  "http-body-util",
  "jsonwebtoken",
+ "lightning-invoice",
  "once_cell",
  "rand 0.10.2",
  "random_word",
