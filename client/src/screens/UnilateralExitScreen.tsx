@@ -24,6 +24,7 @@ import { NoahActivityIndicator } from "~/components/ui/NoahActivityIndicator";
 import { NoahSafeAreaView } from "~/components/NoahSafeAreaView";
 import { ConfirmationDialog } from "~/components/ConfirmationDialog";
 import {
+  useCancelExit,
   useClaimExits,
   useExitOverview,
   useProgressExits,
@@ -40,6 +41,7 @@ import {
   formatBlocksRemaining,
   getExitBlockRows,
   getExitStatusText,
+  isCancelableExit,
   isClaimableExit,
   truncateMiddle,
 } from "~/lib/exitTimeline";
@@ -281,12 +283,18 @@ const ExitVtxoRow = ({
   history,
   currentBlockHeight,
   onPress,
+  onCancel,
+  isBusy,
+  isCanceling,
 }: {
   exit: ExitVtxoResult;
   status?: ExitStatusResult;
   history?: ExitProgressState[];
   currentBlockHeight?: number;
   onPress: () => void;
+  onCancel: () => void;
+  isBusy: boolean;
+  isCanceling: boolean;
 }) => {
   const formatBitcoinAmount = useBitcoinAmountFormatter();
   const state = status?.state ?? exit.state;
@@ -300,10 +308,11 @@ const ExitVtxoRow = ({
   const latestTxExplorerUrl = latestTxid ? getMempoolTxUrl(latestTxid) : null;
   const blockRows = getExitBlockRows({ state, details, currentBlockHeight });
   const statusText = getExitStatusText({ state, details, currentBlockHeight });
+  const canCancel = isCancelableExit(state, details);
 
   return (
-    <Pressable onPress={onPress} className="mb-3 rounded-lg border border-border bg-card p-4">
-      <View>
+    <View className="mb-3 overflow-hidden rounded-lg border border-border bg-card">
+      <Pressable onPress={onPress} className="p-4">
         <View className="flex-row items-center justify-between">
           <Text className="text-xl font-semibold text-foreground">
             {formatBitcoinAmount(exit.amount_sat)}
@@ -354,8 +363,20 @@ const ExitVtxoRow = ({
           currentDetails={details}
           currentBlockHeight={currentBlockHeight}
         />
-      </View>
-    </Pressable>
+      </Pressable>
+      {canCancel ? (
+        <View className="border-t border-border px-4 py-3">
+          <NativeNoahSecondaryButton
+            label={isCanceling ? "Canceling..." : "Cancel Exit"}
+            onPress={onCancel}
+            disabled={isBusy}
+            tone="destructive"
+            fullWidth
+            testID={`cancel-exit-${exit.vtxo_id}`}
+          />
+        </View>
+      ) : null}
+    </View>
   );
 };
 
@@ -379,7 +400,11 @@ const ExitCandidateVtxoRow = ({
       )}
     >
       <View className="mr-4">
-        <Icon name="cube-outline" size={22} color={isSelected ? COLORS.BITCOIN_ORANGE : "#22c55e"} />
+        <Icon
+          name="cube-outline"
+          size={22}
+          color={isSelected ? COLORS.BITCOIN_ORANGE : "#22c55e"}
+        />
       </View>
       <View className="flex-1">
         <Text className="text-base font-semibold text-foreground">
@@ -582,11 +607,7 @@ const StartAnotherExitCard = ({
   );
 };
 
-const EmptyExitState = ({
-  children,
-}: {
-  children: React.ReactNode;
-}) => (
+const EmptyExitState = ({ children }: { children: React.ReactNode }) => (
   <View className="gap-5">
     <View className="items-center rounded-lg border border-border bg-card px-4 py-8">
       <Icon name="shield-outline" size={40} color="#8e8e93" />
@@ -618,10 +639,12 @@ const UnilateralExitScreen = () => {
   const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [showProgressConfirm, setShowProgressConfirm] = useState(false);
   const [showClaimConfirm, setShowClaimConfirm] = useState(false);
+  const [cancelExitVtxoId, setCancelExitVtxoId] = useState<string | null>(null);
 
   const overviewQuery = useExitOverview();
   const startWalletExit = useStartWalletExit();
   const startVtxoExit = useStartVtxoExit();
+  const cancelExit = useCancelExit();
   const progressExits = useProgressExits();
   const syncExits = useSyncExits();
   const claimExits = useClaimExits();
@@ -689,7 +712,8 @@ const UnilateralExitScreen = () => {
     startVtxoExit.isPending ||
     progressExits.isPending ||
     syncExits.isPending ||
-    claimExits.isPending;
+    claimExits.isPending ||
+    cancelExit.isPending;
   const canStartNewExit = spendableVtxos.length > 0;
 
   const startLabel = exitStartMode === "selected" ? "Start Selected Exit" : "Start Wallet Exit";
@@ -761,6 +785,15 @@ const UnilateralExitScreen = () => {
       destinationAddress: trimmedDestination,
     });
     setShowClaimConfirm(false);
+  };
+
+  const handleCancelExit = () => {
+    if (!cancelExitVtxoId) {
+      return;
+    }
+
+    cancelExit.mutate(cancelExitVtxoId);
+    setCancelExitVtxoId(null);
   };
 
   return (
@@ -936,6 +969,9 @@ const UnilateralExitScreen = () => {
                       onPress={() =>
                         navigation.navigate("ExitVtxoDetail", { vtxoId: exit.vtxo_id })
                       }
+                      onCancel={() => setCancelExitVtxoId(exit.vtxo_id)}
+                      isBusy={isBusy}
+                      isCanceling={cancelExit.isPending && cancelExit.variables === exit.vtxo_id}
                     />
                   ))}
                 </View>
@@ -1032,6 +1068,18 @@ const UnilateralExitScreen = () => {
               description={startDescription}
               confirmText={startLabel}
               onConfirm={handleStart}
+            />
+            <ConfirmationDialog
+              open={cancelExitVtxoId !== null}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setCancelExitVtxoId(null);
+                }
+              }}
+              title="Cancel Emergency Exit"
+              description="Stop the emergency exit for this VTXO. Already-broadcast shared transactions are not reversed. The VTXO remains spendable and can be exited again. Cancellation only succeeds before the final exit transaction is broadcast."
+              confirmText="Cancel Exit"
+              onConfirm={handleCancelExit}
             />
             <ConfirmationDialog
               open={showProgressConfirm}

@@ -83,6 +83,24 @@ export const isClaimableExit = (exit: ExitVtxoResult, status?: ExitStatusResult)
   return exit.is_claimable || state === "Claimable" || kind === "claimable";
 };
 
+const CANCELABLE_EXIT_TX_STATUS_KINDS = new Set([
+  "verify-inputs",
+  "awaiting-input-confirmation",
+  "awaiting-cpfp-broadcast",
+]);
+
+export const isCancelableExit = (state: ExitProgressState, details?: ExitStateDetails) => {
+  if (state === "Start") {
+    return true;
+  }
+  if (state !== "Processing") {
+    return false;
+  }
+
+  const finalTransaction = details?.transactions?.at(-1);
+  return !finalTransaction || CANCELABLE_EXIT_TX_STATUS_KINDS.has(finalTransaction.status.kind);
+};
+
 export const getProcessingTransactionSummary = (details?: ExitStateDetails) => {
   const transactions = details?.transactions ?? [];
   if (transactions.length === 0) {

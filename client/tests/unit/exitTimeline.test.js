@@ -29,7 +29,66 @@ const {
   EXIT_STATE_LABELS,
   EXIT_STATE_ORDER,
   getExitStatusText,
+  isCancelableExit,
 } = await import("../../src/lib/exitTimeline");
+
+describe("exit cancellation eligibility", () => {
+  test("allows a newly started exit", () => {
+    expect(isCancelableExit("Start", { kind: "start", tip_height: 100 })).toBe(true);
+  });
+
+  test("allows processing until the final exit transaction is broadcast", () => {
+    for (const kind of [
+      "verify-inputs",
+      "awaiting-input-confirmation",
+      "awaiting-cpfp-broadcast",
+    ]) {
+      expect(
+        isCancelableExit("Processing", {
+          kind: "processing",
+          tip_height: 100,
+          transactions: [{ txid: "final", status: { kind } }],
+        }),
+      ).toBe(true);
+    }
+
+    expect(
+      isCancelableExit("Processing", {
+        kind: "processing",
+        tip_height: 100,
+        transactions: [
+          { txid: "ancestor", status: { kind: "confirmed" } },
+          { txid: "final", status: { kind: "awaiting-cpfp-broadcast" } },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  test("rejects processing after the final exit transaction is broadcast", () => {
+    for (const kind of ["awaiting-confirmation", "confirmed"]) {
+      expect(
+        isCancelableExit("Processing", {
+          kind: "processing",
+          tip_height: 100,
+          transactions: [{ txid: "final", status: { kind } }],
+        }),
+      ).toBe(false);
+    }
+  });
+
+  test("rejects states beyond the abortable window", () => {
+    for (const state of [
+      "AwaitingDelta",
+      "Claimable",
+      "ClaimInProgress",
+      "Claimed",
+      "VtxoAlreadySpent",
+      "Canceled",
+    ]) {
+      expect(isCancelableExit(state, { kind: "awaiting-delta", tip_height: 100 })).toBe(false);
+    }
+  });
+});
 
 describe("canceled exit timelines", () => {
   test("exposes canceled as a terminal exit state", () => {
