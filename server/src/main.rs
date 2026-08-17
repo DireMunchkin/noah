@@ -264,6 +264,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
     // Create rate limiters
     let public_rate_limiter = rate_limit::create_public_rate_limiter();
     let auth_login_rate_limiter = rate_limit::create_public_rate_limiter();
+    let lnurl_rate_limiter = rate_limit::create_public_rate_limiter();
     let auth_rate_limiter = rate_limit::create_auth_rate_limiter();
     let fiat_rate_limiter = rate_limit::create_fiat_rate_limiter();
 
@@ -334,8 +335,11 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
         .merge(fiat_router)
         .merge(bearer_router);
 
-    // Public route
-    let lnurl_router = Router::new().route("/.well-known/lnurlp/{username}", get(lnurlp_request));
+    // Public LNURL route creates durable wallet actions, so protect it with the strict limiter.
+    let lnurl_router = Router::new().route(
+        "/.well-known/lnurlp/{username}",
+        get(lnurlp_request).layer(lnurl_rate_limiter),
+    );
 
     let app = Router::new()
         .route("/", get(|| async { StatusCode::NO_CONTENT }))
