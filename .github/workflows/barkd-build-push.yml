@@ -1,0 +1,97 @@
+name: Manual Barkd Image Build and Push
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  BARK_VERSION: "0.6.1"
+
+concurrency:
+  group: barkd-image-build
+  cancel-in-progress: false
+
+jobs:
+  barkd-build-and-push:
+    strategy:
+      matrix:
+        include:
+          - runner: blacksmith-4vcpu-ubuntu-2404
+            platform: linux/amd64
+            arch: amd64
+          - runner: blacksmith-4vcpu-ubuntu-2404-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: 🏗 Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: 🔐 Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🚀 Build and push ${{ matrix.arch }}
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: fly/barkd.Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          build-args: |
+            BARK_VERSION=${{ env.BARK_VERSION }}
+          tags: |
+            ghcr.io/smolcars/noah-barkd:${{ env.BARK_VERSION }}-${{ matrix.arch }}
+            ghcr.io/smolcars/noah-barkd:latest-${{ matrix.arch }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/noah-barkd:${{ env.BARK_VERSION }}-${{ matrix.arch }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/noah-barkd:latest-${{ matrix.arch }}
+
+  create-manifest:
+    needs: barkd-build-and-push
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: 🔐 Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🎯 Create and push multi-arch manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/smolcars/noah-barkd:${BARK_VERSION} \
+            ghcr.io/smolcars/noah-barkd:${BARK_VERSION}-amd64 \
+            ghcr.io/smolcars/noah-barkd:${BARK_VERSION}-arm64
+
+          docker buildx imagetools create -t ghcr.io/smolcars/noah-barkd:latest \
+            ghcr.io/smolcars/noah-barkd:latest-amd64 \
+            ghcr.io/smolcars/noah-barkd:latest-arm64
+
+          docker buildx imagetools create -t ${{ secrets.DOCKERHUB_USERNAME }}/noah-barkd:${BARK_VERSION} \
+            ${{ secrets.DOCKERHUB_USERNAME }}/noah-barkd:${BARK_VERSION}-amd64 \
+            ${{ secrets.DOCKERHUB_USERNAME }}/noah-barkd:${BARK_VERSION}-arm64
+
+          docker buildx imagetools create -t ${{ secrets.DOCKERHUB_USERNAME }}/noah-barkd:latest \
+            ${{ secrets.DOCKERHUB_USERNAME }}/noah-barkd:latest-amd64 \
+            ${{ secrets.DOCKERHUB_USERNAME }}/noah-barkd:latest-arm64

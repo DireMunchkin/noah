@@ -13,22 +13,35 @@ They must remain in the same Fly organization/private network as their correspon
 - `fly/barkd.Dockerfile`: pinned barkd runtime image
 - `fly/signet.barkd.fly.toml`: `noah-barkd-signet`
 - `fly/mainnet.barkd.fly.toml`: `noah-barkd-mainnet`
+- `.github/workflows/barkd-build-push.yml`: manual multi-architecture image publication
+- `.github/workflows/barkd-signet-deploy.yml`: manual signet deployment
+- `.github/workflows/barkd-mainnet-deploy.yml`: manual production-approved mainnet deployment
 
 ## Build the image locally
 
-The published barkd binary is Linux x86-64, matching Fly's default Machine architecture.
+Second publishes barkd binaries for Linux x86-64 and ARM64. The Dockerfile selects the matching
+asset through BuildKit's `TARGETARCH` and verifies a pinned SHA-256 for each architecture.
 
 ```sh
 docker build \
-  --platform linux/amd64 \
   --file fly/barkd.Dockerfile \
   --tag noah-barkd:0.6.1 \
   .
 
-docker run --rm --platform linux/amd64 noah-barkd:0.6.1 barkd --version
+docker run --rm noah-barkd:0.6.1 barkd --version
 ```
 
-The Dockerfile pins both the barkd version and the release binary SHA-256 checksum.
+The manual build workflow builds natively on amd64 and arm64 runners, then publishes shared
+`0.6.1` and `latest` manifests to `niteshbalusu/noah-barkd` on Docker Hub and
+`ghcr.io/smolcars/noah-barkd` on GHCR:
+
+```sh
+gh workflow run barkd-build-push.yml --ref master
+```
+
+The workflow uses the existing `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
+The Fly configs deliberately use the immutable `0.6.1` tag rather than `latest`, so signet and
+mainnet promote the same image version.
 
 ## Provision signet
 
@@ -43,12 +56,11 @@ fly volumes create bark_data \
   --size 1 \
   --snapshot-retention 30
 
-fly deploy \
-  --config fly/signet.barkd.fly.toml \
-  --remote-only \
-  --ha=false
-fly scale count 1 --app noah-barkd-signet
+gh workflow run barkd-signet-deploy.yml --ref master
 ```
+
+The workflow requires a `FLY_BARKD_SIGNET_API_TOKEN` repository secret with access to only the
+signet barkd app. The app and volume are one-time prerequisites; deployment never recreates them.
 
 Verify that there is exactly one Machine and one attached volume, automatic snapshots are enabled,
 and no public IP was allocated:
@@ -155,6 +167,15 @@ Run the same procedure with these substitutions only after signet testing succee
 
 Never reuse the signet volume, mnemonic, REST token, or wallet fingerprint on mainnet.
 
+Deploy mainnet manually after publishing and testing the pinned image on signet:
+
+```sh
+gh workflow run barkd-mainnet-deploy.yml --ref master
+```
+
+The workflow uses the GitHub `production` environment for approval and requires a
+`FLY_BARKD_MAINNET_API_TOKEN` secret with access to only the mainnet barkd app.
+
 ## Snapshots and restore
 
 Fly takes automatic daily snapshots. Both configs request 30-day retention. Create an on-demand
@@ -190,9 +211,10 @@ in-progress action.
 1. Disable new forwarded invoices in Noah.
 2. Leave barkd running until existing paid receives settle.
 3. Create and verify an on-demand volume snapshot.
-4. Update the pinned barkd version and checksum in `fly/barkd.Dockerfile`.
-5. Build and test the image on signet.
-6. Deploy with the barkd app's rolling strategy.
+4. Update the pinned barkd version and both architecture checksums in `fly/barkd.Dockerfile`, the
+   image tags in the Fly and Compose configs, and `BARK_VERSION` in the build workflow.
+5. Dispatch the image build workflow and deploy the versioned image to signet.
+6. Test signet, then dispatch the production-approved mainnet deployment.
 7. Verify the wallet fingerprint, Ark connection, and a complete signet receive.
 8. Re-enable forwarded invoices.
 
