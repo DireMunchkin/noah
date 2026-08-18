@@ -1,9 +1,56 @@
 use anyhow::{Context, Result};
 use bitcoin::Network;
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
 
 pub const ARK_USER_AGENT: &str = concat!("noah-server/", env!("CARGO_PKG_VERSION"));
+
+const BARKD_MAINNET_HOST: &str = "noah-barkd-mainnet.internal";
+const BARKD_SIGNET_HOST: &str = "noah-barkd-signet.internal";
+const BARKD_PORT: u16 = 3000;
+
+fn validate_barkd_url(network: Network, url: &reqwest::Url) -> Result<()> {
+    if url.scheme() != "http"
+        || url.cannot_be_a_base()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        anyhow::bail!("BARKD_URL must be an HTTP origin without credentials, path, or query");
+    }
+
+    let host = url.host_str().context("BARKD_URL must include a host")?;
+    match network {
+        Network::Bitcoin => {
+            if host != BARKD_MAINNET_HOST || url.port() != Some(BARKD_PORT) {
+                anyhow::bail!("mainnet BARKD_URL must be http://{BARKD_MAINNET_HOST}:{BARKD_PORT}");
+            }
+        }
+        Network::Signet => {
+            if host != BARKD_SIGNET_HOST || url.port() != Some(BARKD_PORT) {
+                anyhow::bail!("signet BARKD_URL must be http://{BARKD_SIGNET_HOST}:{BARKD_PORT}");
+            }
+        }
+        Network::Regtest => {
+            let host_without_ipv6_brackets = host
+                .strip_prefix('[')
+                .and_then(|host| host.strip_suffix(']'))
+                .unwrap_or(host);
+            let is_loopback = host == "localhost"
+                || host_without_ipv6_brackets
+                    .parse::<IpAddr>()
+                    .is_ok_and(|address| address.is_loopback());
+            if !is_loopback {
+                anyhow::bail!("regtest BARKD_URL must use localhost or a loopback IP address");
+            }
+        }
+        _ => anyhow::bail!("forwarded barkd invoices are not supported on {network}"),
+    }
+
+    Ok(())
+}
 
 /// Configuration for the Noah server
 ///
@@ -11,6 +58,7 @@ pub const ARK_USER_AGENT: &str = concat!("noah-server/", env!("CARGO_PKG_VERSION
 /// - `HOST`, `PORT`, `PRIVATE_PORT`
 /// - `POSTGRES_URL`, `REDIS_URL`
 /// - `EXPO_ACCESS_TOKEN`, `ARK_SERVER_URL`
+/// - `BARKD_FORWARDED_INVOICES_ENABLED`, `BARKD_URL`, `BARKD_AUTH_TOKEN`
 /// - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -43,6 +91,10 @@ pub struct Config {
     pub email_dev_mode: bool,
     pub auth_jwt_secret: String,
     pub auth_jwt_ttl_hours: u64,
+    pub barkd_forwarded_invoices_enabled: bool,
+    pub barkd_url: Option<String>,
+    pub barkd_auth_token: Option<String>,
+    pub barkd_request_timeout_seconds: u64,
     pub zoho_client_id: Option<String>,
     pub zoho_client_secret: Option<String>,
     pub zoho_refresh_token: Option<String>,
@@ -132,6 +184,15 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(72),
+            barkd_forwarded_invoices_enabled: std::env::var("BARKD_FORWARDED_INVOICES_ENABLED")
+                .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "True"))
+                .unwrap_or(false),
+            barkd_url: std::env::var("BARKD_URL").ok(),
+            barkd_auth_token: std::env::var("BARKD_AUTH_TOKEN").ok(),
+            barkd_request_timeout_seconds: std::env::var("BARKD_REQUEST_TIMEOUT_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10),
             zoho_client_id: std::env::var("ZOHO_CLIENT_ID").ok(),
             zoho_client_secret: std::env::var("ZOHO_CLIENT_SECRET").ok(),
             zoho_refresh_token: std::env::var("ZOHO_REFRESH_TOKEN").ok(),
@@ -174,6 +235,23 @@ impl Config {
         }
         if self.auth_jwt_secret.is_empty() {
             anyhow::bail!("AUTH_JWT_SECRET is required");
+        }
+        if self.barkd_forwarded_invoices_enabled {
+            let barkd_url = self
+                .barkd_url
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .context("BARKD_URL is required when forwarded invoices are enabled")?;
+            let barkd_url =
+                reqwest::Url::parse(barkd_url).context("BARKD_URL must be a valid URL")?;
+            validate_barkd_url(self.network()?, &barkd_url)?;
+            self.barkd_auth_token
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .context("BARKD_AUTH_TOKEN is required when forwarded invoices are enabled")?;
+            if self.barkd_request_timeout_seconds == 0 {
+                anyhow::bail!("BARKD_REQUEST_TIMEOUT_SECONDS must be greater than zero");
+            }
         }
         Ok(())
     }
@@ -267,6 +345,80 @@ impl Config {
         tracing::debug!("SES From Address: {}", self.ses_from_address);
         tracing::debug!("JWT Auth Secret: [REDACTED]");
         tracing::debug!("JWT TTL Hours: {}", self.auth_jwt_ttl_hours);
+        tracing::debug!(
+            "Barkd forwarded invoices: {}",
+            self.barkd_forwarded_invoices_enabled
+        );
+        tracing::debug!(
+            "Barkd URL: {}",
+            if self.barkd_url.is_some() {
+                "[SET]"
+            } else {
+                "[NOT SET]"
+            }
+        );
+        tracing::debug!(
+            "Barkd auth token: {}",
+            if self.barkd_auth_token.is_some() {
+                "[SET]"
+            } else {
+                "[NOT SET]"
+            }
+        );
+        tracing::debug!(
+            "Barkd request timeout seconds: {}",
+            self.barkd_request_timeout_seconds
+        );
         tracing::debug!("============================");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bitcoin::Network;
+
+    use super::validate_barkd_url;
+
+    fn validate(network: Network, url: &str) -> bool {
+        validate_barkd_url(network, &reqwest::Url::parse(url).unwrap()).is_ok()
+    }
+
+    #[test]
+    fn production_barkd_urls_are_pinned_to_the_private_fly_apps() {
+        assert!(validate(
+            Network::Bitcoin,
+            "http://noah-barkd-mainnet.internal:3000"
+        ));
+        assert!(validate(
+            Network::Signet,
+            "http://noah-barkd-signet.internal:3000/"
+        ));
+
+        for (network, url) in [
+            (Network::Bitcoin, "https://noah-barkd-mainnet.internal:3000"),
+            (Network::Bitcoin, "http://noah-barkd-mainnet.internal"),
+            (Network::Bitcoin, "http://noah-barkd-signet.internal:3000"),
+            (Network::Signet, "http://example.com:3000"),
+            (
+                Network::Signet,
+                "http://noah-barkd-signet.internal:3000/api",
+            ),
+            (
+                Network::Signet,
+                "http://token@noah-barkd-signet.internal:3000",
+            ),
+        ] {
+            assert!(!validate(network, url), "accepted unsafe barkd URL: {url}");
+        }
+    }
+
+    #[test]
+    fn regtest_barkd_urls_are_limited_to_loopback_hosts() {
+        assert!(validate(Network::Regtest, "http://localhost:3000"));
+        assert!(validate(Network::Regtest, "http://127.0.0.1:3100"));
+        assert!(validate(Network::Regtest, "http://[::1]:3200"));
+        assert!(!validate(Network::Regtest, "http://192.168.1.10:3000"));
+        assert!(!validate(Network::Regtest, "https://localhost:3000"));
+        assert!(!validate(Network::Testnet, "http://localhost:3000"));
     }
 }

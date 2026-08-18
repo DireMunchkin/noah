@@ -3,6 +3,7 @@ use std::sync::Arc;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
+pub mod barkd_client;
 pub mod cache;
 pub mod config;
 pub mod db;
@@ -17,6 +18,7 @@ pub mod utils;
 pub mod zoho;
 
 use crate::{
+    barkd_client::{ForwardingInvoiceProvider, build_forwarding_invoice_provider},
     cache::{
         email_verification_store::EmailVerificationStore, invoice_store::InvoiceStore,
         k1_store::K1Store, maintenance_store::MaintenanceStore, redis_client::RedisClient,
@@ -39,6 +41,7 @@ pub struct AppStruct {
     pub email_verification_store: EmailVerificationStore,
     pub email_client: EmailClient,
     pub maintenance_store: MaintenanceStore,
+    pub barkd_invoice_provider: Option<Arc<dyn ForwardingInvoiceProvider>>,
 }
 
 pub async fn build_app_state(config: Config) -> anyhow::Result<AppState> {
@@ -60,6 +63,7 @@ pub async fn build_app_state(config: Config) -> anyhow::Result<AppState> {
     let email_verification_store = EmailVerificationStore::new(redis_client);
     let email_client =
         EmailClient::new(config.ses_from_address.clone(), config.email_dev_mode).await?;
+    let barkd_invoice_provider = build_forwarding_invoice_provider(&config)?;
 
     Ok(Arc::new(AppStruct {
         config: Arc::new(config.clone()),
@@ -71,5 +75,6 @@ pub async fn build_app_state(config: Config) -> anyhow::Result<AppState> {
         email_verification_store,
         email_client,
         maintenance_store,
+        barkd_invoice_provider,
     }))
 }

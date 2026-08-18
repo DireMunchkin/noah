@@ -303,8 +303,9 @@ async fn negotiated_ark_address(
 /// Handles LNURL-pay requests.
 ///
 /// This endpoint manages the two-step LNURL-pay flow. The first request (without an amount)
-/// returns payment parameters. The second request (with an amount) triggers a push
-/// notification to the user to generate an invoice, which is then returned to the payer.
+/// returns payment parameters. The second request (with an amount) returns a direct Ark response
+/// when negotiated, otherwise it asks barkd for a forwarding invoice when configured and falls
+/// back to waking the user's device.
 pub async fn lnurlp_request(
     State(state): State<AppState>,
     Path(username): Path<String>,
@@ -390,6 +391,54 @@ pub async fn lnurlp_request(
         return Ok(Json(
             serde_json::to_value(response).map_err(|e| ApiError::SerializeErr(e.to_string()))?,
         ));
+    }
+
+    if let (Some(provider), Some(ark_address)) =
+        (&state.barkd_invoice_provider, user.ark_address.as_deref())
+    {
+        if amount % 1000 != 0 {
+            return Err(ApiError::InvalidArgument(
+                "Invoice amount must be a whole number of satoshis".to_string(),
+            ));
+        }
+        let amount_sat = amount / 1000;
+        let description = format!("Paying satoshis to {lightning_address}");
+
+        match provider
+            .create_invoice_for_address(ark_address, amount_sat, Some(&description))
+            .await
+        {
+            Ok(invoice) => {
+                tracing::info!(
+                    pubkey = %pubkey,
+                    amount_msats = amount,
+                    "Created forwarded Lightning invoice with barkd"
+                );
+                if let Some(Extension(event)) = &event {
+                    event.add_context("invoice_source", "barkd");
+                }
+                let response = LnurlpInvoiceResponse {
+                    pr: invoice.invoice,
+                    routes: vec![],
+                    ark: user.ark_address,
+                };
+                return Ok(Json(
+                    serde_json::to_value(response)
+                        .map_err(|e| ApiError::SerializeErr(e.to_string()))?,
+                ));
+            }
+            Err(error) => {
+                tracing::warn!(
+                    pubkey = %pubkey,
+                    amount_msats = amount,
+                    error = %error,
+                    "Failed to create forwarded Lightning invoice with barkd; falling back to device"
+                );
+                if let Some(Extension(event)) = &event {
+                    event.add_context("barkd_fallback", true);
+                }
+            }
+        }
     }
 
     if !has_expo_push_token(&state, &pubkey).await? {

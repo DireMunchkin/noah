@@ -6,6 +6,7 @@ use axum::{
     routing::{get, post},
 };
 mod auth;
+mod barkd_client;
 mod cache;
 mod config;
 mod routes;
@@ -20,6 +21,7 @@ use std::{net::SocketAddr, sync::Arc};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
+    barkd_client::{ForwardingInvoiceProvider, build_forwarding_invoice_provider},
     cache::{
         email_verification_store::EmailVerificationStore, invoice_store::InvoiceStore,
         k1_store::K1Store, maintenance_store::MaintenanceStore, redis_client::RedisClient,
@@ -83,6 +85,23 @@ pub struct AppStruct {
     pub email_verification_store: EmailVerificationStore,
     pub email_client: EmailClient,
     pub maintenance_store: MaintenanceStore,
+    pub barkd_invoice_provider: Option<Arc<dyn ForwardingInvoiceProvider>>,
+}
+
+fn spawn_barkd_startup_probe(provider: Option<Arc<dyn ForwardingInvoiceProvider>>) {
+    let Some(provider) = provider else {
+        return;
+    };
+
+    tokio::spawn(async move {
+        match provider.check_readiness().await {
+            Ok(()) => tracing::info!("Barkd startup readiness check succeeded"),
+            Err(error) => tracing::warn!(
+                error = %error,
+                "Barkd startup readiness check failed; forwarded invoices will fall back to device wake-up"
+            ),
+        }
+    });
 }
 
 fn main() -> anyhow::Result<()> {
@@ -174,6 +193,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
     let email_client =
         EmailClient::new(config.ses_from_address.clone(), config.email_dev_mode).await?;
     tracing::info!("Email client initialized");
+    let barkd_invoice_provider = build_forwarding_invoice_provider(&config)?;
 
     let app_state = Arc::new(AppStruct {
         config: Arc::new(config.clone()),
@@ -185,7 +205,9 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
         email_verification_store,
         email_client,
         maintenance_store,
+        barkd_invoice_provider,
     });
+    spawn_barkd_startup_probe(app_state.barkd_invoice_provider.clone());
 
     config.log_config();
 
@@ -259,6 +281,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
     // Create rate limiters
     let public_rate_limiter = rate_limit::create_public_rate_limiter();
     let auth_login_rate_limiter = rate_limit::create_public_rate_limiter();
+    let lnurl_rate_limiter = rate_limit::create_lnurl_rate_limiter();
     let auth_rate_limiter = rate_limit::create_auth_rate_limiter();
     let fiat_rate_limiter = rate_limit::create_fiat_rate_limiter();
 
@@ -329,8 +352,11 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
         .merge(fiat_router)
         .merge(bearer_router);
 
-    // Public route
-    let lnurl_router = Router::new().route("/.well-known/lnurlp/{username}", get(lnurlp_request));
+    // Public LNURL route creates durable wallet actions, so protect it with the strict limiter.
+    let lnurl_router = Router::new().route(
+        "/.well-known/lnurlp/{username}",
+        get(lnurlp_request).layer(lnurl_rate_limiter),
+    );
 
     let app = Router::new()
         .route("/", get(|| async { StatusCode::NO_CONTENT }))

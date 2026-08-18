@@ -1,11 +1,48 @@
-use axum::body::Body;
+use std::net::{IpAddr, SocketAddr};
+
+use axum::{body::Body, extract::ConnectInfo, http::Request};
 use tower_governor::{
-    GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
+    GovernorLayer,
+    errors::GovernorError,
+    governor::GovernorConfigBuilder,
+    key_extractor::{KeyExtractor, SmartIpKeyExtractor},
 };
+
+const FLY_CLIENT_IP_HEADER: &str = "fly-client-ip";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlyClientIpKeyExtractor;
+
+impl KeyExtractor for FlyClientIpKeyExtractor {
+    type Key = IpAddr;
+
+    fn extract<T>(&self, request: &Request<T>) -> Result<Self::Key, GovernorError> {
+        if let Some(value) = request.headers().get(FLY_CLIENT_IP_HEADER) {
+            return value
+                .to_str()
+                .ok()
+                .and_then(|value| value.trim().parse().ok())
+                .ok_or(GovernorError::UnableToExtractKey);
+        }
+
+        request
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|address| address.0.ip())
+            .or_else(|| request.extensions().get::<SocketAddr>().map(SocketAddr::ip))
+            .ok_or(GovernorError::UnableToExtractKey)
+    }
+}
 
 // Type alias to simplify the return type
 type RateLimiter = GovernorLayer<
     SmartIpKeyExtractor,
+    governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
+    Body,
+>;
+
+type FlyRateLimiter = GovernorLayer<
+    FlyClientIpKeyExtractor,
     governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
     Body,
 >;
@@ -19,6 +56,19 @@ pub fn create_public_rate_limiter() -> RateLimiter {
         .key_extractor(SmartIpKeyExtractor)
         .finish()
         .expect("Failed to create rate limiter config");
+
+    GovernorLayer::new(config)
+}
+
+/// Creates a strict public limiter using the client IP supplied by Fly's trusted proxy.
+/// Local requests fall back to their peer address so development remains usable.
+pub fn create_lnurl_rate_limiter() -> FlyRateLimiter {
+    let config = GovernorConfigBuilder::default()
+        .per_second(5)
+        .burst_size(60)
+        .key_extractor(FlyClientIpKeyExtractor)
+        .finish()
+        .expect("Failed to create LNURL rate limiter config");
 
     GovernorLayer::new(config)
 }
@@ -48,4 +98,66 @@ pub fn create_fiat_rate_limiter() -> RateLimiter {
         .expect("Failed to create rate limiter config");
 
     GovernorLayer::new(config)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    use axum::{
+        body::Body,
+        extract::ConnectInfo,
+        http::{HeaderValue, Request},
+    };
+    use tower_governor::{errors::GovernorError, key_extractor::KeyExtractor};
+
+    use super::FlyClientIpKeyExtractor;
+
+    #[test]
+    fn trusts_fly_client_ip_instead_of_forwarded_headers() {
+        let mut request = Request::new(Body::empty());
+        request
+            .headers_mut()
+            .insert("fly-client-ip", HeaderValue::from_static("203.0.113.10"));
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", HeaderValue::from_static("198.51.100.20"));
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+        assert_eq!(
+            FlyClientIpKeyExtractor.extract(&request).unwrap(),
+            IpAddr::V4(Ipv4Addr::new(203, 0, 113, 10))
+        );
+    }
+
+    #[test]
+    fn falls_back_to_peer_ip_without_a_fly_header() {
+        let mut request = Request::new(Body::empty());
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+        assert_eq!(
+            FlyClientIpKeyExtractor.extract(&request).unwrap(),
+            IpAddr::V4(Ipv4Addr::LOCALHOST)
+        );
+    }
+
+    #[test]
+    fn rejects_a_malformed_fly_client_ip() {
+        let mut request = Request::new(Body::empty());
+        request
+            .headers_mut()
+            .insert("fly-client-ip", HeaderValue::from_static("not-an-ip"));
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+        assert!(matches!(
+            FlyClientIpKeyExtractor.extract(&request),
+            Err(GovernorError::UnableToExtractKey)
+        ));
+    }
 }
