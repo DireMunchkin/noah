@@ -6,7 +6,7 @@ kill_signal = "SIGTERM"
 kill_timeout = "30s"
 
 [build]
-  dockerfile = "barkd.Dockerfile"
+  image = "niteshbalusu/noah-barkd:0.6.1"
 
 [deploy]
   strategy = "rolling"

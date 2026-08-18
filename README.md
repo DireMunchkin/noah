@@ -124,6 +124,7 @@ For development and testing, you can run a complete local Ark stack using Docker
 - **bitcoind** - Bitcoin Core in regtest mode
 - **captaind** (aspd) - Ark Server Protocol Daemon
 - **bark** - Ark CLI client
+- **barkd** - Noah forwarding wallet daemon
 - **postgres** - Database for captaind
 - **dragonfly** - Redis-compatible cache backing LNURL auth (k1) storage
 - **cln** - Core Lightning node
@@ -147,14 +148,36 @@ just setup-everything
 
 This single command will:
 
-- Start all Docker services (bitcoind, captaind, postgres, dragonfly db, cln, lnd, bark, noah-server)
+- Start all Docker services (bitcoind, captaind, postgres, dragonfly db, cln, lnd, bark, barkd, noah-server)
 - Create and fund a Bitcoin Core wallet
 - Generate 150 blocks
 - Fund the Ark server with 1 BTC
 - Create a bark wallet
+- Create a barkd forwarding wallet
 - Funds the bark wallet with 0.1 BTC and boards into Ark with 0.01 BTC
 - Fund LND with 0.1 BTC
 - Open a Lightning channel between LND and CLN (1M sats, 900k pushed to CLN)
+
+**Barkd forwarding tests:**
+
+The default stack starts barkd, persists its wallet in a Docker volume, and enables server-side
+forwarding in Noah. `just setup-everything` initializes the wallet automatically. When starting a
+fresh stack manually, initialize barkd once after the services are up:
+
+```bash
+just up
+just create-barkd-wallet
+```
+
+The service uses the same versioned multi-architecture image as Fly, shares Noah's network
+namespace so the server reaches it at a loopback URL, and publishes the API only on
+`127.0.0.1:3001`. Authentication is disabled only in this local trusted environment. To test a
+locally built image before publication:
+
+```bash
+docker build --file fly/barkd.Dockerfile --tag noah-barkd:local .
+BARKD_IMAGE=noah-barkd:local just up
+```
 
 **Manual Setup (Step by Step):**
 
@@ -178,6 +201,9 @@ This single command will:
 
     # Create a bark wallet
     just create-bark-wallet
+
+    # Create a barkd forwarding wallet
+    just create-barkd-wallet
     ```
 
 3.  **Setup Lightning channels (optional)**
@@ -198,6 +224,7 @@ just down
 **Useful Commands:**
 
 - Interact with bark wallet: `just bark <command>`
+- Initialize the barkd forwarding wallet: `just create-barkd-wallet`
 - Interact with ASPD RPC: `just aspd <command>`
 - Use bitcoin-cli: `just bcli <command>`
 - Use lncli: `just lncli <command>`
@@ -211,6 +238,7 @@ just down
 - Ark Server (captaind): `http://localhost:3535`
 - Noah Server: `http://localhost:3000`
 - Noah Server Health: `http://localhost:3099/health`
+- Barkd API: `http://127.0.0.1:3001`
 - PostgreSQL: `localhost:5432`
 - LND RPC: `localhost:10009` (P2P: `localhost:9735`)
 - CLN RPC: `localhost:9988` (P2P: `localhost:9736`)
