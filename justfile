@@ -165,6 +165,9 @@ create-wallet:
 create-bark-wallet:
     ./scripts/ark-dev.sh create-bark-wallet
 
+create-barkd-wallet:
+    ./scripts/ark-dev.sh create-barkd-wallet
+
 generate blocks="101":
     ./scripts/ark-dev.sh generate {{ blocks }}
 

@@ -13,6 +13,7 @@ COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 BITCOIND_SERVICE="bitcoind"
 ASPD_SERVICE="captaind"
 BARK_SERVICE="bark"
+BARKD_SERVICE="barkd"
 CLN_SERVICE="cln"
 LND_SERVICE="lnd"
 NOAH_SERVER_SERVICE="noah-server"
@@ -25,7 +26,7 @@ BITCOIN_CLI_OPTS="-regtest -rpcuser=second -rpcpassword=ark -rpcwallet=$WALLET_N
 # --- End Configuration ---
     echo "SETUP:"
     echo "  setup                      Clone the bark repo and checkout the correct version."
-    echo "  setup-everything           Run complete setup: setup, up, create-wallet, generate 150, fund-aspd 1, create-bark-wallet, start noah-server."
+    echo "  setup-everything           Run complete setup: start services, fund wallets, and initialize bark and barkd."
 
 
 # Helper function to avoid repeating the long docker-compose command
@@ -43,7 +44,7 @@ usage() {
     echo ""
     echo "SETUP:"
     echo "  setup                      Clone the bark repo and checkout the correct version."
-    echo "  setup-everything           Run complete setup: setup, up, create-wallet, generate 150, fund-aspd 1, create-bark-wallet, start noah-server."
+    echo "  setup-everything           Run complete setup: start services, fund wallets, and initialize bark and barkd."
     echo ""
     echo "LIFECYCLE COMMANDS (run after 'setup'):"
     echo "  up                         Start all services in the background (docker-compose up -d)."
@@ -53,6 +54,7 @@ usage() {
     echo "MANAGEMENT COMMANDS (run while services are 'up'):"
     echo "  create-wallet              Create and load a new wallet in bitcoind named '$WALLET_NAME'."
     echo "  create-bark-wallet         Create a new bark wallet with pre-configured dev settings."
+    echo "  create-barkd-wallet        Create the barkd forwarding wallet."
     echo "  generate <num_blocks>      Mine blocks on bitcoind. Creates wallet if it doesn't exist."
     echo "  fund-aspd <amount>         Send <amount> of BTC from bitcoind to the ASPD wallet."
     echo "  send-to <addr> <amt>       Send <amt> BTC from bitcoind to <addr> and mine 1 block."
@@ -98,6 +100,63 @@ create_bark_wallet() {
         --bitcoind-pass ark \
         --force
     echo "✅ Bark wallet created. You can now use './ark-dev.sh bark <command>'."
+}
+
+# Creates the barkd wallet used for server-side forwarding tests.
+create_barkd_wallet() {
+    if ! command -v jq &> /dev/null; then
+        echo "Error: 'jq' is not installed. Please install it to continue." >&2
+        exit 1
+    fi
+
+    echo "Waiting for the local barkd API..."
+    local wallet_response=""
+    local barkd_ready=false
+    local attempt
+    for attempt in $(seq 1 20); do
+        if wallet_response=$(curl --silent --fail http://127.0.0.1:3001/api/v1/wallet); then
+            barkd_ready=true
+            break
+        fi
+        sleep 1
+    done
+
+    if [[ "$barkd_ready" != true ]]; then
+        echo "Error: $BARKD_SERVICE is not reachable. Run 'just up' first." >&2
+        exit 1
+    fi
+
+    local fingerprint
+    fingerprint=$(printf '%s' "$wallet_response" | jq -r '.fingerprint // empty')
+    if [[ -n "$fingerprint" ]]; then
+        echo "Barkd wallet already exists with fingerprint: $fingerprint"
+        return
+    fi
+
+    local create_response
+    create_response=$(curl --fail-with-body \
+        --request POST \
+        --header "Content-Type: application/json" \
+        --data-binary @- \
+        http://127.0.0.1:3001/api/v1/wallet/create <<'JSON'
+{
+  "network": "regtest",
+  "ark_server": "http://captaind:3535",
+  "chain_source": {
+    "esplora": {
+      "url": "http://electrs:3002"
+    }
+  }
+}
+JSON
+    )
+
+    fingerprint=$(printf '%s' "$create_response" | jq -r '.fingerprint // empty')
+    if [[ -z "$fingerprint" ]]; then
+        echo "Error: barkd did not return a wallet fingerprint." >&2
+        exit 1
+    fi
+    echo "Barkd wallet created with fingerprint: $fingerprint"
 }
 
 # Generates blocks using the bitcoind container
@@ -251,6 +310,9 @@ setup_everything() {
     create_bark_wallet
 
     echo ""
+    create_barkd_wallet
+
+    echo ""
     echo "🔍 Getting bark onchain address..."
     local bark_address
     bark_address=$(dcr run --rm "$BARK_SERVICE" bark onchain address | jq -r '.address')
@@ -280,6 +342,7 @@ setup_everything() {
     echo "  - ASPD (Ark Server): http://localhost:3535"
     echo "  - Noah Server: http://localhost:3000"
     echo "  - Noah Server Health: http://localhost:3099/health"
+    echo "  - Barkd API: http://127.0.0.1:3001"
     echo "  - LND (Lightning): RPC at localhost:10009, P2P at localhost:9735"
     echo "  - CLN (Core Lightning): RPC at localhost:9988, P2P at localhost:9736"
     echo "  - Lightning Channel: LND <-> CLN (1M sats with 900k pushed to CLN)"
@@ -328,6 +391,10 @@ case "$COMMAND" in
 
     create-bark-wallet)
         create_bark_wallet
+        ;;
+
+    create-barkd-wallet)
+        create_barkd_wallet
         ;;
 
     generate)

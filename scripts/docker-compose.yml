@@ -152,13 +152,37 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env.regtest
+    environment:
+      BARKD_FORWARDED_INVOICES_ENABLED: "true"
+      BARKD_URL: http://127.0.0.1:3001
+      BARKD_AUTH_TOKEN: regtest-no-auth
     ports:
       - "3000:3000"
       - "3099:3099"
+      - "127.0.0.1:3001:3001"
     depends_on:
       captaind:
         condition: service_started
       dragonfly:
+        condition: service_started
+
+  barkd:
+    image: ${BARKD_IMAGE:-niteshbalusu/noah-barkd:0.6.1}
+    restart: on-failure
+    network_mode: "service:noah-server"
+    environment:
+      BARKD_BIND_HOST: 0.0.0.0
+      BARKD_BIND_PORT: "3001"
+      BARKD_DATADIR: /data/barkd
+      BARKD_NO_AUTH: "true"
+    volumes:
+      - barkd:/data
+    depends_on:
+      noah-server:
+        condition: service_started
+      captaind:
+        condition: service_started
+      electrs:
         condition: service_started
 
 volumes:
@@ -169,6 +193,7 @@ volumes:
   bitcoind:
   postgres:
   lnd:
+  barkd:
 
 networks:
   bark:
