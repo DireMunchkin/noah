@@ -8,6 +8,7 @@ use reqwest::header::{AUTHORIZATION, HeaderValue};
 use serde::{Deserialize, Serialize};
 
 const CREATE_INVOICE_FOR_ADDRESS_PATH: &str = "api/v1/lightning/receives/invoice/for-address";
+const ARK_INFO_PATH: &str = "api/v1/wallet/ark-info";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForwardingInvoice {
@@ -16,6 +17,8 @@ pub struct ForwardingInvoice {
 
 #[async_trait]
 pub trait ForwardingInvoiceProvider: Send + Sync {
+    async fn check_readiness(&self) -> Result<()>;
+
     async fn create_invoice_for_address(
         &self,
         address: &str,
@@ -93,8 +96,42 @@ struct InvoiceResponse {
     invoice: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct ArkInfoResponse {
+    network: Network,
+}
+
 #[async_trait]
 impl ForwardingInvoiceProvider for BarkdClient {
+    async fn check_readiness(&self) -> Result<()> {
+        let response = self
+            .client
+            .get(self.endpoint(ARK_INFO_PATH)?)
+            .header(AUTHORIZATION, self.authorization.clone())
+            .send()
+            .await
+            .context("barkd readiness request failed")?;
+
+        let status = response.status();
+        if !status.is_success() {
+            anyhow::bail!("barkd readiness request returned HTTP {status}");
+        }
+
+        let response: ArkInfoResponse = response
+            .json()
+            .await
+            .context("barkd readiness response was invalid")?;
+        if response.network != self.expected_network {
+            anyhow::bail!(
+                "barkd network {} did not match expected network {}",
+                response.network,
+                self.expected_network
+            );
+        }
+
+        Ok(())
+    }
+
     async fn create_invoice_for_address(
         &self,
         address: &str,
@@ -160,7 +197,7 @@ mod tests {
     use axum::Router;
     use axum::http::{HeaderMap, StatusCode};
     use axum::response::IntoResponse;
-    use axum::routing::post;
+    use axum::routing::{get, post};
     use bitcoin::Network;
     use bitcoin::hashes::{Hash, sha256};
     use bitcoin::secp256k1::{Secp256k1, SecretKey};
@@ -198,6 +235,81 @@ mod tests {
             .build_signed(|hash| Secp256k1::new().sign_ecdsa_recoverable(hash, &private_key))
             .unwrap()
             .to_string()
+    }
+
+    #[tokio::test]
+    async fn checks_barkd_readiness_with_authentication() {
+        let app = Router::new().route(
+            "/api/v1/wallet/ark-info",
+            get(|headers: HeaderMap| async move {
+                if headers
+                    .get("authorization")
+                    .and_then(|value| value.to_str().ok())
+                    != Some("Bearer secret-token")
+                {
+                    return StatusCode::UNAUTHORIZED.into_response();
+                }
+
+                axum::Json(json!({ "network": "signet" })).into_response()
+            }),
+        );
+        let base_url = spawn_server(app).await;
+        let client = BarkdClient::new(
+            &base_url,
+            "secret-token",
+            Network::Signet,
+            Duration::from_secs(1),
+        )
+        .unwrap();
+
+        client.check_readiness().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn reports_unready_barkd_without_exposing_the_response_body() {
+        let app = Router::new().route(
+            "/api/v1/wallet/ark-info",
+            get(|| async {
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "sensitive upstream details",
+                )
+            }),
+        );
+        let base_url = spawn_server(app).await;
+        let client = BarkdClient::new(
+            &base_url,
+            "secret-token",
+            Network::Signet,
+            Duration::from_secs(1),
+        )
+        .unwrap();
+
+        let error = client.check_readiness().await.unwrap_err().to_string();
+
+        assert!(error.contains("HTTP 503 Service Unavailable"));
+        assert!(!error.contains("sensitive upstream details"));
+        assert!(!error.contains("secret-token"));
+    }
+
+    #[tokio::test]
+    async fn rejects_barkd_for_the_wrong_network() {
+        let app = Router::new().route(
+            "/api/v1/wallet/ark-info",
+            get(|| async { axum::Json(json!({ "network": "bitcoin" })) }),
+        );
+        let base_url = spawn_server(app).await;
+        let client = BarkdClient::new(
+            &base_url,
+            "secret-token",
+            Network::Signet,
+            Duration::from_secs(1),
+        )
+        .unwrap();
+
+        let error = client.check_readiness().await.unwrap_err().to_string();
+
+        assert!(error.contains("did not match expected network"));
     }
 
     #[tokio::test]
