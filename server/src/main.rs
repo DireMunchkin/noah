@@ -88,6 +88,22 @@ pub struct AppStruct {
     pub barkd_invoice_provider: Option<Arc<dyn ForwardingInvoiceProvider>>,
 }
 
+fn spawn_barkd_startup_probe(provider: Option<Arc<dyn ForwardingInvoiceProvider>>) {
+    let Some(provider) = provider else {
+        return;
+    };
+
+    tokio::spawn(async move {
+        match provider.check_readiness().await {
+            Ok(()) => tracing::info!("Barkd startup readiness check succeeded"),
+            Err(error) => tracing::warn!(
+                error = %error,
+                "Barkd startup readiness check failed; forwarded invoices will fall back to device wake-up"
+            ),
+        }
+    });
+}
+
 fn main() -> anyhow::Result<()> {
     let config = Config::load()?;
 
@@ -191,6 +207,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
         maintenance_store,
         barkd_invoice_provider,
     });
+    spawn_barkd_startup_probe(app_state.barkd_invoice_provider.clone());
 
     config.log_config();
 

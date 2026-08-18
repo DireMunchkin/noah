@@ -61,6 +61,10 @@ impl TestForwardingInvoiceProvider {
 
 #[async_trait]
 impl ForwardingInvoiceProvider for TestForwardingInvoiceProvider {
+    async fn check_readiness(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     async fn create_invoice_for_address(
         &self,
         address: &str,
