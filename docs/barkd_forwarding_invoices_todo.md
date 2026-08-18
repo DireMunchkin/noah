@@ -162,7 +162,7 @@ app = "noah-barkd-signet"
 primary_region = "iad"
 
 [build]
-  dockerfile = "fly/barkd.Dockerfile"
+  dockerfile = "barkd.Dockerfile"
 
 [deploy]
   strategy = "rolling"
@@ -208,7 +208,7 @@ Illustrative commands; verify them against the installed `flyctl` before executi
 ```sh
 fly apps create noah-barkd-signet
 fly volumes create bark_data --app noah-barkd-signet --region iad --size 1
-fly deploy --config fly/signet.barkd.fly.toml
+fly deploy --config fly/signet.barkd.fly.toml --remote-only --ha=false
 fly scale count 1 --app noah-barkd-signet
 fly ips list --app noah-barkd-signet
 ```

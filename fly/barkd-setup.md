@@ -41,7 +41,10 @@ fly volumes create bark_data \
   --size 1 \
   --snapshot-retention 30
 
-fly deploy --config fly/signet.barkd.fly.toml
+fly deploy \
+  --config fly/signet.barkd.fly.toml \
+  --remote-only \
+  --ha=false
 fly scale count 1 --app noah-barkd-signet
 ```
 
