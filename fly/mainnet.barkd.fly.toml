@@ -16,7 +16,7 @@ kill_timeout = "30s"
   policy = "always"
 
 [env]
-  BARKD_DATADIR = "/data"
+  BARKD_DATADIR = "/data/barkd"
   BARKD_BIND_HOST = "::"
   BARKD_BIND_PORT = "3000"
 

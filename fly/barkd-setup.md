@@ -1,7 +1,9 @@
 # Barkd Fly setup
 
 Noah uses one private barkd app and wallet per Bitcoin network. Barkd owns its SQLite wallet state
-on a Fly Volume; the Noah server remains stateless and calls barkd over Fly's private 6PN network.
+in `/data/barkd` on a Fly Volume; the Noah server remains stateless and calls barkd over Fly's
+private 6PN network. The subdirectory keeps the filesystem's `lost+found` directory outside Barkd's
+datadir, which must not contain unexpected files when the wallet is created.
 
 The barkd apps intentionally have no `http_service`, `services`, Flycast address, or public IP.
 They must remain in the same Fly organization/private network as their corresponding Noah apps.
@@ -67,7 +69,7 @@ Barkd generates an auth token in the datadir on first start. Display it in a con
 ```sh
 fly ssh console \
   --app noah-barkd-signet \
-  --command "barkd --datadir /data secret show"
+  --command "barkd --datadir /data/barkd secret show"
 ```
 
 Store the value on the Noah app, then discard it from the clipboard and terminal scrollback:
@@ -110,9 +112,16 @@ curl --fail-with-body \
 JSON
 ```
 
-Record the returned wallet fingerprint. Barkd generates the mnemonic inside `/data`; retrieve it in
-a controlled SSH session and store it in the approved offline recovery system. Do not enable the
-REST mnemonic endpoint in the normal deployment.
+Record the returned wallet fingerprint. Barkd generates the mnemonic inside `/data/barkd`; retrieve
+it in a controlled SSH session and store it in the approved offline recovery system:
+
+```sh
+fly ssh console \
+  --app noah-barkd-signet \
+  --command "cat /data/barkd/mnemonic"
+```
+
+Do not enable the REST mnemonic endpoint in the normal deployment.
 
 Check the Ark connection through the same tunnel:
 

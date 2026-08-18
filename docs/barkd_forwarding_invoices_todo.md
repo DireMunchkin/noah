@@ -125,7 +125,7 @@ These items block implementation or mainnet rollout.
 The normal process should be equivalent to:
 
 ```sh
-barkd --datadir /data --host :: --port 3000
+barkd --datadir /data/barkd --host :: --port 3000
 ```
 
 `barkd` currently parses `--host` as an IP address, so use the IPv6 wildcard `::`; do not pass the
@@ -147,7 +147,9 @@ Fly hostname `fly-local-6pn` as the flag value.
 - [ ] Add `fly/mainnet.barkd.fly.toml` only after signet passes the rollout gates.
 - [ ] Use `iad`, matching the Noah server's primary region.
 - [ ] Mount a volume named `bark_data` at `/data`.
-- [ ] Configure `BARKD_DATADIR=/data`, `BARKD_BIND_HOST=::`, and `BARKD_BIND_PORT=3000`.
+- [ ] Configure `BARKD_DATADIR=/data/barkd`, `BARKD_BIND_HOST=::`, and `BARKD_BIND_PORT=3000`.
+- [ ] Keep the datadir below the volume root so Fly's filesystem-owned `lost+found` directory does
+  not prevent wallet creation.
 - [ ] Use `strategy = "rolling"`; Fly blue/green and canary deployments are not supported for
   Machines with attached volumes.
 - [ ] Keep one Machine running with auto-stop disabled.
@@ -168,7 +170,7 @@ primary_region = "iad"
   strategy = "rolling"
 
 [env]
-  BARKD_DATADIR = "/data"
+  BARKD_DATADIR = "/data/barkd"
   BARKD_BIND_HOST = "::"
   BARKD_BIND_PORT = "3000"
 
@@ -219,7 +221,7 @@ fly ips list --app noah-barkd-signet
 
 - [ ] Start barkd with the empty mounted datadir. It should generate its REST auth token.
 - [ ] Retrieve the bearer token in a controlled operator session with
-  `barkd --datadir /data secret show`.
+  `barkd --datadir /data/barkd secret show`.
 - [ ] Store the token as `BARKD_AUTH_TOKEN` on the corresponding Noah app.
 - [ ] Store `BARKD_URL=http://noah-barkd-signet.internal:3000` on `noah-signet`.
 - [ ] Do not store the bearer token in Git, logs, Docker layers, or `fly.toml`.
@@ -423,7 +425,7 @@ negotiation fails.
   stuck paid receive.
 - [ ] Alert when the Fly volume is near capacity.
 - [ ] Document bearer-token rotation:
-  - Rotate with `barkd --datadir /data secret refresh` in a controlled session.
+  - Rotate with `barkd --datadir /data/barkd secret refresh` in a controlled session.
   - Update the corresponding Noah Fly secret.
   - Restart/roll Noah and verify authentication.
 - [ ] Document volume-host failure and restoration from continuous backup.
