@@ -252,21 +252,21 @@ pub struct UpdateLnAddressPayload {
     pub ln_address: String,
 }
 
-/// Defines the payload for atomically configuring a hosted NIP-05 identity.
+/// Defines the payload for atomically configuring a hosted Lightning identity.
 #[derive(Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../client/src/types/serverTypes.ts")]
-pub struct UpdateNip05IdentityPayload {
-    /// The local part of the user's hosted Lightning and NIP-05 identifier.
+pub struct UpdateLightningIdentityPayload {
+    /// The local part of the user's hosted Lightning address and optional NIP-05 identifier.
     pub username: String,
     /// An optional Nostr public key encoded as npub. Null disables NIP-05.
     pub nostr_pubkey: Option<String>,
 }
 
-/// Represents a configured hosted NIP-05 identity.
+/// Represents a configured hosted Lightning identity.
 #[derive(Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../client/src/types/serverTypes.ts")]
-pub struct Nip05IdentityResponse {
-    /// The hosted Lightning and NIP-05 identifier.
+pub struct LightningIdentityResponse {
+    /// The hosted Lightning address and optional NIP-05 identifier.
     pub lightning_address: String,
     /// The optional Nostr public key in canonical lowercase hex format.
     pub nostr_pubkey: Option<String>,

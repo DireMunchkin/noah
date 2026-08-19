@@ -255,7 +255,7 @@ impl<'a> UserRepository<'a> {
     }
 
     /// Atomically updates the hosted Lightning address and its NIP-05 public key.
-    pub async fn update_nip05_identity(
+    pub async fn update_lightning_identity(
         &self,
         pubkey: &str,
         ln_address: &str,

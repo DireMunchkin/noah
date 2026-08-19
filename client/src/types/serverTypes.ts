@@ -125,22 +125,22 @@ suggestions: Array<string>, };
 
 export type LightningClaimRequestNotification = { payment_hash: string, amount_sat: number, };
 
-export type LightningInvoiceRequestNotification = { transaction_id: string, amount: number, };
-
-export type MaintenanceNotification = { notification_k1: string, };
-
 /**
- * Represents a configured hosted NIP-05 identity.
+ * Represents a configured hosted Lightning identity.
  */
-export type Nip05IdentityResponse = { 
+export type LightningIdentityResponse = { 
 /**
- * The hosted Lightning and NIP-05 identifier.
+ * The hosted Lightning address and optional NIP-05 identifier.
  */
 lightning_address: string, 
 /**
  * The optional Nostr public key in canonical lowercase hex format.
  */
 nostr_pubkey: string | null, };
+
+export type LightningInvoiceRequestNotification = { transaction_id: string, amount: number, };
+
+export type MaintenanceNotification = { notification_k1: string, };
 
 export type NotificationData = { "notification_type": "maintenance" } & MaintenanceNotification | { "notification_type": "lightning_invoice_request" } & LightningInvoiceRequestNotification | { "notification_type": "lightning_claim_request" } & LightningClaimRequestNotification | { "notification_type": "backup_trigger" } & BackupTriggerNotification | { "notification_type": "heartbeat" } & HeartbeatNotification;
 
@@ -244,6 +244,19 @@ export type SubmitSupportTicketResponse = { ticket_id: string, ticket_number: st
 export type SupportTicketAttachment = { filename: string, content_type: string, base64_data: string, };
 
 /**
+ * Defines the payload for atomically configuring a hosted Lightning identity.
+ */
+export type UpdateLightningIdentityPayload = { 
+/**
+ * The local part of the user's hosted Lightning address and optional NIP-05 identifier.
+ */
+username: string, 
+/**
+ * An optional Nostr public key encoded as npub. Null disables NIP-05.
+ */
+nostr_pubkey: string | null, };
+
+/**
  * Defines the payload for updating a user's lightning address.
  */
 export type UpdateLnAddressPayload = { 
@@ -251,19 +264,6 @@ export type UpdateLnAddressPayload = {
  * The new lightning address for the user.
  */
 ln_address: string, };
-
-/**
- * Defines the payload for atomically configuring a hosted NIP-05 identity.
- */
-export type UpdateNip05IdentityPayload = { 
-/**
- * The local part of the user's hosted Lightning and NIP-05 identifier.
- */
-username: string, 
-/**
- * An optional Nostr public key encoded as npub. Null disables NIP-05.
- */
-nostr_pubkey: string | null, };
 
 /**
  * Defines the payload for updating a user's profile.

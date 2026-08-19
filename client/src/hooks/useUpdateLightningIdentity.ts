@@ -1,12 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
-import { updateNip05Identity } from "~/lib/api";
+import { updateLightningIdentity } from "~/lib/api";
 import logger from "~/lib/log";
 import { useServerStore } from "~/store/serverStore";
 import { useAlert } from "~/contexts/AlertProvider";
 
-const log = logger("useUpdateNip05Identity");
+const log = logger("useUpdateLightningIdentity");
 
-const updateNip05IdentityWrapper = async ({
+const updateLightningIdentityWrapper = async ({
   username,
   nostrPubkey,
 }: {
@@ -26,7 +26,7 @@ const updateNip05IdentityWrapper = async ({
     throw new Error("Nostr public keys must use npub encoding");
   }
 
-  const result = await updateNip05Identity({
+  const result = await updateLightningIdentity({
     username: normalizedUsername,
     nostr_pubkey: normalizedNostrPubkey,
   });
@@ -38,17 +38,17 @@ const updateNip05IdentityWrapper = async ({
   return result.value;
 };
 
-export const useUpdateNip05Identity = (callbacks?: {
+export const useUpdateLightningIdentity = (callbacks?: {
   onSuccess?: () => void;
   onError?: (error: Error) => void;
 }) => {
-  const setNip05Identity = useServerStore((state) => state.setNip05Identity);
+  const setLightningIdentity = useServerStore((state) => state.setLightningIdentity);
   const { showAlert } = useAlert();
 
   return useMutation({
-    mutationFn: updateNip05IdentityWrapper,
+    mutationFn: updateLightningIdentityWrapper,
     onSuccess: (identity) => {
-      setNip05Identity(identity.lightning_address, identity.nostr_pubkey);
+      setLightningIdentity(identity.lightning_address, identity.nostr_pubkey);
       log.d("Successfully updated Lightning and NIP-05 settings");
       callbacks?.onSuccess?.();
     },

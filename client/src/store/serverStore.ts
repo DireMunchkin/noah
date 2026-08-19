@@ -56,7 +56,7 @@ interface ServerState {
   ) => void;
   setLightningAddress: (lightningAddress: string) => void;
   setNostrPubkey: (nostrPubkey: string | null) => void;
-  setNip05Identity: (lightningAddress: string, nostrPubkey: string | null) => void;
+  setLightningIdentity: (lightningAddress: string, nostrPubkey: string | null) => void;
   setBackupEnabled: (enabled: boolean) => void;
   setEmailAddress: (emailAddress: string | null) => void;
   setEmailVerified: (verified: boolean) => void;
@@ -85,7 +85,8 @@ export const useServerStore = create<ServerState>()(
         set({ isRegisteredWithServer: isRegistered, lightningAddress, isBackupEnabled }),
       setLightningAddress: (lightningAddress) => set({ lightningAddress }),
       setNostrPubkey: (nostrPubkey) => set({ nostrPubkey }),
-      setNip05Identity: (lightningAddress, nostrPubkey) => set({ lightningAddress, nostrPubkey }),
+      setLightningIdentity: (lightningAddress, nostrPubkey) =>
+        set({ lightningAddress, nostrPubkey }),
       setBackupEnabled: (enabled) => set({ isBackupEnabled: enabled }),
       setEmailAddress: (emailAddress) => set({ emailAddress }),
       setEmailVerified: (verified) => set({ isEmailVerified: verified }),

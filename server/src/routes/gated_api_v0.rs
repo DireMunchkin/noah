@@ -15,9 +15,9 @@ use crate::types::{
     DefaultSuccessPayload, DeleteBackupObjectPayload, DeleteBackupPayload, DownloadUrlResponse,
     GetBackupObjectDownloadPayload, GetDownloadUrlPayload, HeartbeatResponsePayload,
     InitiateBackupUploadPayload, InitiateBackupUploadResponse, LightningAddressSuggestionsPayload,
-    LightningAddressSuggestionsResponse, Nip05IdentityResponse, ReportJobStatusPayload,
+    LightningAddressSuggestionsResponse, LightningIdentityResponse, ReportJobStatusPayload,
     ReportLastLoginPayload, ReportStatus, SubmitInvoicePayload, SubmitSupportTicketPayload,
-    SubmitSupportTicketResponse, UpdateNip05IdentityPayload, UpdateProfilePayload,
+    SubmitSupportTicketResponse, UpdateLightningIdentityPayload, UpdateProfilePayload,
     UserInfoResponse, UserStatus, is_valid_ln_username, normalize_nostr_pubkey,
 };
 use crate::{
@@ -323,11 +323,11 @@ pub async fn get_user_info(
 }
 
 /// Atomically configures a user's hosted Lightning address and optional NIP-05 public key.
-pub async fn update_nip05_identity(
+pub async fn update_lightning_identity(
     State(state): State<AppState>,
     Extension(auth_payload): Extension<AuthenticatedUser>,
-    Json(payload): Json<UpdateNip05IdentityPayload>,
-) -> anyhow::Result<Json<Nip05IdentityResponse>, ApiError> {
+    Json(payload): Json<UpdateLightningIdentityPayload>,
+) -> anyhow::Result<Json<LightningIdentityResponse>, ApiError> {
     let username = payload.username.trim().to_lowercase();
     if !is_valid_ln_username(&username) {
         return Err(ApiError::InvalidArgument(
@@ -347,7 +347,7 @@ pub async fn update_nip05_identity(
 
     let user_repo = UserRepository::new(&state.db_pool);
     if let Err(e) = user_repo
-        .update_nip05_identity(
+        .update_lightning_identity(
             &auth_payload.key,
             &lightning_address,
             nostr_pubkey.as_deref(),
@@ -362,7 +362,7 @@ pub async fn update_nip05_identity(
         return Err(e.into());
     }
 
-    Ok(Json(Nip05IdentityResponse {
+    Ok(Json(LightningIdentityResponse {
         lightning_address,
         nostr_pubkey,
     }))

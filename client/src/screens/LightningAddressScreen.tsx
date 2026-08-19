@@ -5,7 +5,7 @@ import type { RouteProp } from "@react-navigation/native";
 import { Input } from "../components/ui/input";
 import { Text } from "../components/ui/text";
 import { NoahSafeAreaView } from "~/components/NoahSafeAreaView";
-import { useUpdateNip05Identity } from "../hooks/useUpdateNip05Identity";
+import { useUpdateLightningIdentity } from "../hooks/useUpdateLightningIdentity";
 import { getLnurlDomain } from "../constants";
 import { hexPubkeyToNpub } from "../lib/nostr";
 import { useServerStore } from "../store/serverStore";
@@ -37,7 +37,7 @@ const LightningAddressScreen = () => {
   const normalizedNostrKey = nostrKey.trim();
   const [showUpdateSuccess, setShowUpdateSuccess] = useState(false);
 
-  const updateIdentityMutation = useUpdateNip05Identity({
+  const updateIdentityMutation = useUpdateLightningIdentity({
     onSuccess: () => {
       setShowUpdateSuccess(true);
       setTimeout(() => {

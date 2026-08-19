@@ -13,7 +13,7 @@ use crate::db::mailbox_authorization_repo::MailboxAuthorizationRepository;
 use crate::db::push_token_repo::PushTokenRepository;
 use crate::db::user_repo::UserRepository;
 use crate::tests::common::{TestUser, create_test_user, setup_test_app};
-use crate::types::{Nip05IdentityResponse, UserInfoResponse, UserStatus};
+use crate::types::{LightningIdentityResponse, UserInfoResponse, UserStatus};
 
 const NOSTR_PUBKEY: &str = "b0635d6a9851d3aed0cd6c495b282167acf761729078d975fc341b22650b07b9";
 const NOSTR_NPUB: &str = "npub1kp34665c28f6a5xdd3y4k2ppv7k0wctjjpudja0uxsdjyegtq7us853d4g";
@@ -135,7 +135,7 @@ async fn test_update_ln_address() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_update_nip05_identity() {
+async fn test_update_lightning_identity() {
     let (app, app_state, _guard) = setup_test_app().await;
 
     let user = TestUser::new();
@@ -155,7 +155,7 @@ async fn test_update_nip05_identity() {
         .oneshot(
             Request::builder()
                 .method(http::Method::POST)
-                .uri("/update_nip05_identity")
+                .uri("/update_lightning_identity")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .header(
                     http::header::AUTHORIZATION,
@@ -175,7 +175,7 @@ async fn test_update_nip05_identity() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = response.into_body().collect().await.unwrap().to_bytes();
-    let res: Nip05IdentityResponse = serde_json::from_slice(&body).unwrap();
+    let res: LightningIdentityResponse = serde_json::from_slice(&body).unwrap();
     assert_eq!(res.lightning_address, "alice@localhost");
     assert_eq!(res.nostr_pubkey.as_deref(), Some(NOSTR_PUBKEY));
 
@@ -193,14 +193,14 @@ async fn test_update_nip05_identity() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_update_nip05_identity_allows_lightning_only() {
+async fn test_update_lightning_identity_allows_lightning_only() {
     let (app, app_state, _guard) = setup_test_app().await;
 
     let user = TestUser::new();
     create_test_user(&app_state, &user, None).await;
     let user_repo = UserRepository::new(&app_state.db_pool);
     user_repo
-        .update_nip05_identity(
+        .update_lightning_identity(
             &user.pubkey().to_string(),
             "existing@localhost",
             Some(NOSTR_PUBKEY),
@@ -213,7 +213,7 @@ async fn test_update_nip05_identity_allows_lightning_only() {
         .oneshot(
             Request::builder()
                 .method(http::Method::POST)
-                .uri("/update_nip05_identity")
+                .uri("/update_lightning_identity")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .header(
                     http::header::AUTHORIZATION,
@@ -233,7 +233,7 @@ async fn test_update_nip05_identity_allows_lightning_only() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = response.into_body().collect().await.unwrap().to_bytes();
-    let res: Nip05IdentityResponse = serde_json::from_slice(&body).unwrap();
+    let res: LightningIdentityResponse = serde_json::from_slice(&body).unwrap();
     assert_eq!(res.lightning_address, "lightning-only@localhost");
     assert_eq!(res.nostr_pubkey, None);
 
@@ -247,7 +247,7 @@ async fn test_update_nip05_identity_allows_lightning_only() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_update_nip05_identity_rejects_private_key() {
+async fn test_update_lightning_identity_rejects_private_key() {
     let (app, app_state, _guard) = setup_test_app().await;
 
     let user = TestUser::new();
@@ -258,7 +258,7 @@ async fn test_update_nip05_identity_rejects_private_key() {
         .oneshot(
             Request::builder()
                 .method(http::Method::POST)
-                .uri("/update_nip05_identity")
+                .uri("/update_lightning_identity")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .header(
                     http::header::AUTHORIZATION,
@@ -281,7 +281,7 @@ async fn test_update_nip05_identity_rejects_private_key() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_update_nip05_identity_rejects_hex_key() {
+async fn test_update_lightning_identity_rejects_hex_key() {
     let (app, app_state, _guard) = setup_test_app().await;
 
     let user = TestUser::new();
@@ -292,7 +292,7 @@ async fn test_update_nip05_identity_rejects_hex_key() {
         .oneshot(
             Request::builder()
                 .method(http::Method::POST)
-                .uri("/update_nip05_identity")
+                .uri("/update_lightning_identity")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .header(
                     http::header::AUTHORIZATION,
