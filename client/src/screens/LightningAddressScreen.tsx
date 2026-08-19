@@ -128,6 +128,16 @@ const LightningAddressScreen = () => {
                 autoCorrect={false}
               />
             </View>
+            <View className="rounded-xl border border-border/60 bg-background/70 p-3">
+              <Text className="text-xs text-muted-foreground">
+                {normalizedNostrKey
+                  ? "Your Lightning address and NIP-05 identifier will be"
+                  : "Your Lightning address will be"}
+              </Text>
+              <Text className="mt-1 text-md font-semibold text-foreground">
+                {normalizedUsername}@{domain}
+              </Text>
+            </View>
             <View>
               <Text className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
                 Nostr public key (optional)
@@ -143,16 +153,6 @@ const LightningAddressScreen = () => {
               <Text className="mt-2 text-sm text-muted-foreground">
                 Leave this blank to use Lightning without NIP-05. Only npub public keys are
                 accepted; never paste an nsec private key.
-              </Text>
-            </View>
-            <View className="rounded-xl border border-border/60 bg-background/70 p-3">
-              <Text className="text-xs text-muted-foreground">
-                {normalizedNostrKey
-                  ? "Your Lightning address and NIP-05 identifier will be"
-                  : "Your Lightning address will be"}
-              </Text>
-              <Text className="mt-1 text-md font-semibold text-foreground">
-                {normalizedUsername}@{domain}
               </Text>
             </View>
             {normalizedNostrKey ? (
