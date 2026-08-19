@@ -5,7 +5,9 @@ use crate::db::{
     fiat_rate_repo::FiatRateRepository, mailbox_authorization_repo::MailboxAuthorizationRepository,
     push_token_repo::PushTokenRepository, user_repo::UserRepository,
 };
-use crate::routes::public_api_v0::{GetK1, LnurlpDefaultResponse, LnurlpInvoiceResponse};
+use crate::routes::public_api_v0::{
+    GetK1, LnurlpDefaultResponse, LnurlpInvoiceResponse, Nip05Response,
+};
 use crate::tests::common::{
     TestUser, create_test_user, setup_public_test_app, setup_public_test_app_with_barkd,
     setup_test_app,
@@ -102,6 +104,94 @@ fn test_ark_address(server_key_byte: u8) -> (PublicKey, String) {
         .unwrap();
 
     (server_pubkey, address.to_string())
+}
+
+const NOSTR_PUBKEY: &str = "b0635d6a9851d3aed0cd6c495b282167acf761729078d975fc341b22650b07b9";
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_nip05_request_returns_active_linked_user() {
+    let (app, app_state, _guard) = setup_public_test_app().await;
+
+    sqlx::query("INSERT INTO users (pubkey, lightning_address, nostr_pubkey) VALUES ($1, $2, $3)")
+        .bind("wallet_pubkey")
+        .bind("alice@localhost")
+        .bind(NOSTR_PUBKEY)
+        .execute(&app_state.db_pool)
+        .await
+        .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri("/.well-known/nostr.json?name=alice")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get(http::header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .unwrap(),
+        "*"
+    );
+    assert_eq!(
+        response.headers().get(http::header::CACHE_CONTROL).unwrap(),
+        "public, max-age=60"
+    );
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let res: Nip05Response = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        res.names.get("alice").map(String::as_str),
+        Some(NOSTR_PUBKEY)
+    );
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_nip05_request_omits_unlinked_and_inactive_users() {
+    let (app, app_state, _guard) = setup_public_test_app().await;
+
+    sqlx::query("INSERT INTO users (pubkey, lightning_address) VALUES ($1, $2)")
+        .bind("unlinked_wallet_pubkey")
+        .bind("unlinked@localhost")
+        .execute(&app_state.db_pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO users (pubkey, lightning_address, nostr_pubkey, status) VALUES ($1, $2, $3, 'inactive')",
+    )
+    .bind("inactive_wallet_pubkey")
+    .bind("inactive@localhost")
+    .bind(NOSTR_PUBKEY)
+    .execute(&app_state.db_pool)
+    .await
+    .unwrap();
+
+    for name in ["unlinked", "inactive", "INVALID"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri(format!("/.well-known/nostr.json?name={name}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let res: Nip05Response = serde_json::from_slice(&body).unwrap();
+        assert!(res.names.is_empty());
+    }
 }
 
 #[tracing_test::traced_test]

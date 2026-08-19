@@ -125,6 +125,19 @@ suggestions: Array<string>, };
 
 export type LightningClaimRequestNotification = { payment_hash: string, amount_sat: number, };
 
+/**
+ * Represents a configured hosted Lightning identity.
+ */
+export type LightningIdentityResponse = { 
+/**
+ * The hosted Lightning address and optional NIP-05 identifier.
+ */
+lightning_address: string, 
+/**
+ * The optional Nostr public key in canonical lowercase hex format.
+ */
+nostr_pubkey: string | null, };
+
 export type LightningInvoiceRequestNotification = { transaction_id: string, amount: number, };
 
 export type MaintenanceNotification = { notification_k1: string, };
@@ -178,6 +191,10 @@ reason: string | null,
  */
 lightning_address: string | null, 
 /**
+ * The user's Nostr public key in canonical lowercase hex format.
+ */
+nostr_pubkey: string | null, 
+/**
  * The user's optional display name.
  */
 display_name: string | null, 
@@ -227,6 +244,19 @@ export type SubmitSupportTicketResponse = { ticket_id: string, ticket_number: st
 export type SupportTicketAttachment = { filename: string, content_type: string, base64_data: string, };
 
 /**
+ * Defines the payload for atomically configuring a hosted Lightning identity.
+ */
+export type UpdateLightningIdentityPayload = { 
+/**
+ * The local part of the user's hosted Lightning address and optional NIP-05 identifier.
+ */
+username: string, 
+/**
+ * An optional Nostr public key encoded as npub. Null disables NIP-05.
+ */
+nostr_pubkey: string | null, };
+
+/**
  * Defines the payload for updating a user's lightning address.
  */
 export type UpdateLnAddressPayload = { 
@@ -254,6 +284,10 @@ export type UserInfoResponse = {
  * The user's lightning address.
  */
 lightning_address: string, 
+/**
+ * The user's Nostr public key in canonical lowercase hex format.
+ */
+nostr_pubkey: string | null, 
 /**
  * The user's optional display name.
  */

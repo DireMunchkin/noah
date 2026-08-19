@@ -15,9 +15,10 @@ use crate::types::{
     DefaultSuccessPayload, DeleteBackupObjectPayload, DeleteBackupPayload, DownloadUrlResponse,
     GetBackupObjectDownloadPayload, GetDownloadUrlPayload, HeartbeatResponsePayload,
     InitiateBackupUploadPayload, InitiateBackupUploadResponse, LightningAddressSuggestionsPayload,
-    LightningAddressSuggestionsResponse, ReportJobStatusPayload, ReportLastLoginPayload,
-    ReportStatus, SubmitInvoicePayload, SubmitSupportTicketPayload, SubmitSupportTicketResponse,
-    UpdateProfilePayload, UserInfoResponse, UserStatus,
+    LightningAddressSuggestionsResponse, LightningIdentityResponse, ReportJobStatusPayload,
+    ReportLastLoginPayload, ReportStatus, SubmitInvoicePayload, SubmitSupportTicketPayload,
+    SubmitSupportTicketResponse, UpdateLightningIdentityPayload, UpdateProfilePayload,
+    UserInfoResponse, UserStatus, is_valid_ln_username, normalize_nostr_pubkey,
 };
 use crate::{
     AppState,
@@ -314,9 +315,56 @@ pub async fn get_user_info(
 
     Ok(Json(UserInfoResponse {
         lightning_address,
+        nostr_pubkey: user.nostr_pubkey,
         display_name: user.display_name,
         email: user.email,
         user_status: user.status,
+    }))
+}
+
+/// Atomically configures a user's hosted Lightning address and optional NIP-05 public key.
+pub async fn update_lightning_identity(
+    State(state): State<AppState>,
+    Extension(auth_payload): Extension<AuthenticatedUser>,
+    Json(payload): Json<UpdateLightningIdentityPayload>,
+) -> anyhow::Result<Json<LightningIdentityResponse>, ApiError> {
+    let username = payload.username.trim().to_lowercase();
+    if !is_valid_ln_username(&username) {
+        return Err(ApiError::InvalidArgument(
+            "Username may only contain a-z, 0-9, dash, underscore, and period".to_string(),
+        ));
+    }
+
+    let nostr_pubkey = payload
+        .nostr_pubkey
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(normalize_nostr_pubkey)
+        .transpose()
+        .map_err(|message| ApiError::InvalidArgument(message.to_string()))?;
+    let lightning_address = format!("{}@{}", username, state.lnurl_domain.to_lowercase());
+
+    let user_repo = UserRepository::new(&state.db_pool);
+    if let Err(e) = user_repo
+        .update_lightning_identity(
+            &auth_payload.key,
+            &lightning_address,
+            nostr_pubkey.as_deref(),
+        )
+        .await
+    {
+        if e.is::<crate::db::user_repo::LightningAddressTakenError>() {
+            return Err(ApiError::InvalidArgument(
+                "Lightning address already taken".to_string(),
+            ));
+        }
+        return Err(e.into());
+    }
+
+    Ok(Json(LightningIdentityResponse {
+        lightning_address,
+        nostr_pubkey,
     }))
 }
 

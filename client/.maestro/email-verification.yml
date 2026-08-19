@@ -39,6 +39,7 @@ appId: com.noahwallet.regtest
 - eraseText: 40
 - inputText: ${output.lightningUsername}
 - assertVisible: ${output.lightningUsername}
+- tapOn: "Choose your Lightning Address"
 - tapOn: "Save"
 - extendedWaitUntil:
     visible: "Success!"

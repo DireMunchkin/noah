@@ -11,6 +11,7 @@ import { NativeNoahBackButton } from "~/components/ui/NativeNoahIconButton";
 import type { SettingsStackParamList } from "~/Navigators";
 import { getUserInfo, updateProfile } from "~/lib/api";
 import { copyToClipboard } from "~/lib/clipboardUtils";
+import { hexPubkeyToNpub } from "~/lib/nostr";
 import { COLORS } from "~/lib/styleConstants";
 import { useIconColor, useThemeColors } from "~/hooks/useTheme";
 import { useDeriveKeyPairFromMnemonic } from "~/hooks/useCrypto";
@@ -71,7 +72,10 @@ const ProfileScreen = () => {
   const isEmailVerified = useServerStore((state) => state.isEmailVerified);
   const isRegisteredWithServer = useServerStore((state) => state.isRegisteredWithServer);
   const lightningAddress = useServerStore((state) => state.lightningAddress);
+  const nostrPubkey = useServerStore((state) => state.nostrPubkey);
+  const nostrNpub = hexPubkeyToNpub(nostrPubkey);
   const setEmailAddress = useServerStore((state) => state.setEmailAddress);
+  const setNostrPubkey = useServerStore((state) => state.setNostrPubkey);
   const displayName = useProfileStore((state) => state.displayName);
   const setDisplayName = useProfileStore((state) => state.setDisplayName);
   const { data: derivedKeyPair } = useDeriveKeyPairFromMnemonic();
@@ -85,13 +89,14 @@ const ProfileScreen = () => {
   }, [displayName]);
 
   useEffect(() => {
-    if (!isRegisteredWithServer || !isEmailVerified || emailAddress) {
+    const hasCurrentEmail = !isEmailVerified || Boolean(emailAddress);
+    if (!isRegisteredWithServer || (hasCurrentEmail && nostrPubkey)) {
       return;
     }
 
     let cancelled = false;
 
-    const refreshEmail = async () => {
+    const refreshUserInfo = async () => {
       const result = await getUserInfo();
       if (cancelled) {
         return;
@@ -103,14 +108,22 @@ const ProfileScreen = () => {
       }
 
       setEmailAddress(result.value.email);
+      setNostrPubkey(result.value.nostr_pubkey ?? null);
     };
 
-    refreshEmail();
+    refreshUserInfo();
 
     return () => {
       cancelled = true;
     };
-  }, [emailAddress, isEmailVerified, isRegisteredWithServer, setEmailAddress]);
+  }, [
+    emailAddress,
+    isEmailVerified,
+    isRegisteredWithServer,
+    nostrPubkey,
+    setEmailAddress,
+    setNostrPubkey,
+  ]);
 
   const normalizedDisplayName = draftDisplayName.trim();
 
@@ -244,13 +257,19 @@ const ProfileScreen = () => {
                   </Text>
                 </View>
               )}
+              {nostrNpub ? (
+                <>
+                  <View className="h-px bg-border" />
+                  <CopyRow label="NIP-05 Nostr public key" value={nostrNpub} />
+                </>
+              ) : null}
               <View className="h-px bg-border" />
               <Pressable
                 onPress={() => navigation.navigate("LightningAddress", { fromOnboarding: false })}
                 className="flex-row items-center justify-between px-4 py-4"
               >
                 <Text className="text-base font-semibold text-foreground">
-                  Change Lightning Address
+                  {nostrNpub ? "Change Lightning & NIP-05" : "Configure Lightning & NIP-05"}
                 </Text>
                 <Icon name="chevron-forward-outline" size={22} color={iconColor} />
               </Pressable>
