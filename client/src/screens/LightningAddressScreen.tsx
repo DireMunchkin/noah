@@ -145,22 +145,18 @@ const LightningAddressScreen = () => {
               <Input
                 value={nostrKey}
                 onChangeText={setNostrKey}
-                className="h-16 rounded-2xl border border-border bg-background/90 px-4 text-lg leading-6 text-foreground"
+                className="min-h-16 rounded-2xl border border-border bg-background/90 px-4 py-4 font-mono text-base leading-5 text-foreground"
                 placeholder="npub1..."
                 autoCapitalize="none"
                 autoCorrect={false}
+                multiline={false}
+                scrollEnabled
               />
               <Text className="mt-2 text-sm text-muted-foreground">
                 Leave this blank to use Lightning without NIP-05. Only npub public keys are
                 accepted; never paste an nsec private key.
               </Text>
             </View>
-            {normalizedNostrKey ? (
-              <Text className="text-sm text-muted-foreground">
-                Add this exact identifier to the NIP-05 field in the Nostr profile for this public
-                key. Nostr clients will then verify it against Noah.
-              </Text>
-            ) : null}
           </View>
         </View>
         {fromOnboarding ? (
