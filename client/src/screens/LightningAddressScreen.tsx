@@ -1,11 +1,11 @@
 import React, { useState } from "react";
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import { Input } from "../components/ui/input";
 import { Text } from "../components/ui/text";
 import { NoahSafeAreaView } from "~/components/NoahSafeAreaView";
-import { useUpdateLightningAddress } from "../hooks/useUpdateLightningAddress";
+import { useUpdateNip05Identity } from "../hooks/useUpdateNip05Identity";
 import { getLnurlDomain } from "../constants";
 import { useServerStore } from "../store/serverStore";
 import { useWalletStore } from "../store/walletStore";
@@ -13,7 +13,6 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { CheckCircle } from "lucide-react-native";
 import type { OnboardingStackParamList, SettingsStackParamList } from "../Navigators";
 import { NativeNoahButton } from "~/components/ui/NativeNoahButton";
-import { NativeNoahSecondaryButton } from "~/components/ui/NativeNoahSecondaryButton";
 import { NativeNoahBackButton } from "~/components/ui/NativeNoahIconButton";
 
 type LightningAddressScreenRouteProp = RouteProp<
@@ -26,14 +25,16 @@ const LightningAddressScreen = () => {
   const route = useRoute<LightningAddressScreenRouteProp>();
   const { fromOnboarding } = route.params || {};
   const { finishOnboarding } = useWalletStore();
-  const { lightningAddress } = useServerStore();
+  const { lightningAddress, nostrPubkey } = useServerStore();
   const domain = getLnurlDomain();
   const currentUsername = lightningAddress ? lightningAddress.split("@")[0] : "";
   const [username, setUsername] = useState(currentUsername);
+  const [nostrKey, setNostrKey] = useState(nostrPubkey ?? "");
   const normalizedUsername = username.trim().toLowerCase();
+  const normalizedNostrKey = nostrKey.trim();
   const [showUpdateSuccess, setShowUpdateSuccess] = useState(false);
 
-  const updateLightningAddressMutation = useUpdateLightningAddress({
+  const updateIdentityMutation = useUpdateNip05Identity({
     onSuccess: () => {
       setShowUpdateSuccess(true);
       setTimeout(() => {
@@ -47,28 +48,35 @@ const LightningAddressScreen = () => {
     },
   });
 
-  const handleSave = async () => {
-    if (normalizedUsername) {
-      const newAddress = `${normalizedUsername}@${domain}`;
-      if (newAddress !== lightningAddress) {
-        updateLightningAddressMutation.mutate(newAddress);
-      } else if (fromOnboarding) {
-        finishOnboarding();
-      }
+  const handleSave = () => {
+    if (!normalizedUsername || !normalizedNostrKey) {
+      return;
     }
-  };
 
-  const handleSkip = () => {
-    if (fromOnboarding) {
-      // User already registered with server-generated lightning address during email verification
-      finishOnboarding();
+    const newAddress = `${normalizedUsername}@${domain}`;
+    if (newAddress === lightningAddress && normalizedNostrKey === nostrPubkey) {
+      if (fromOnboarding) {
+        finishOnboarding();
+      } else {
+        navigation.goBack();
+      }
+      return;
     }
+
+    updateIdentityMutation.mutate({
+      username: normalizedUsername,
+      nostrPubkey: normalizedNostrKey,
+    });
   };
 
   return (
     <NoahSafeAreaView className="flex-1 bg-background">
-      <View className="p-4">
-        <View className="flex-row items-center mb-8">
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      >
+        <View className="mb-8 flex-row items-center">
           {!fromOnboarding && (
             <NativeNoahBackButton
               onPress={() => navigation.goBack()}
@@ -77,22 +85,24 @@ const LightningAddressScreen = () => {
             />
           )}
           <Text className="text-2xl font-bold text-foreground">
-            {fromOnboarding ? "Choose your Lightning Address" : "Lightning Address"}
+            {fromOnboarding ? "Create your NIP-05 Identity" : "Lightning & NIP-05"}
           </Text>
         </View>
         {showUpdateSuccess && (
           <Alert icon={CheckCircle} className="mb-4">
             <AlertTitle>Success!</AlertTitle>
-            <AlertDescription>Lightning address has been updated.</AlertDescription>
+            <AlertDescription>
+              Your Lightning address and NIP-05 identity have been updated.
+            </AlertDescription>
           </Alert>
         )}
-        <View className="mt-10">
-          <Text className="text-muted-foreground mb-3">
-            Pick a username or let us assign one for you.
+        <View className="mt-6">
+          <Text className="mb-3 text-muted-foreground">
+            Link a Nostr public key so the same address works for Lightning and NIP-05.
           </Text>
-          <View className="bg-card rounded-2xl border border-border p-5 space-y-5">
+          <View className="space-y-5 rounded-2xl border border-border bg-card p-5">
             <View>
-              <Text className="text-xs uppercase tracking-widest text-muted-foreground mb-2">
+              <Text className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
                 Username
               </Text>
               <Input
@@ -105,47 +115,51 @@ const LightningAddressScreen = () => {
                 autoCorrect={false}
               />
             </View>
-            <View className="bg-background/70 rounded-xl p-3 border border-border/60">
-              <Text className="text-xs text-muted-foreground">Your lightning address will be</Text>
-              <Text className="text-md font-semibold text-foreground mt-1">
+            <View>
+              <Text className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+                Nostr public key
+              </Text>
+              <Input
+                value={nostrKey}
+                onChangeText={setNostrKey}
+                className="h-16 rounded-2xl border border-border bg-background/90 px-4 text-lg leading-6 text-foreground"
+                placeholder="npub1... or 64-character hex"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text className="mt-2 text-sm text-muted-foreground">
+                Use a public npub or hex key. Never paste an nsec private key.
+              </Text>
+            </View>
+            <View className="rounded-xl border border-border/60 bg-background/70 p-3">
+              <Text className="text-xs text-muted-foreground">
+                Your Lightning address and NIP-05 identifier will be
+              </Text>
+              <Text className="mt-1 text-md font-semibold text-foreground">
                 {normalizedUsername}@{domain}
               </Text>
             </View>
+            <Text className="text-sm text-muted-foreground">
+              Add this exact identifier to the NIP-05 field in the Nostr profile for this public
+              key. Nostr clients will then verify it against Noah.
+            </Text>
           </View>
         </View>
-        {fromOnboarding ? (
-          <View className="flex-row items-center mt-8 gap-4">
-            <View className="flex-1">
-              <NativeNoahSecondaryButton
-                label="Skip"
-                onPress={handleSkip}
-                disabled={updateLightningAddressMutation.isPending}
-                fullWidth
-              />
-            </View>
-            <View className="flex-1">
-              <NativeNoahButton
-                label={`${normalizedUsername}@${domain}` === lightningAddress ? "Continue" : "Save"}
-                onPress={handleSave}
-                isLoading={updateLightningAddressMutation.isPending}
-                loadingLabel="Saving..."
-                disabled={!normalizedUsername}
-                fullWidth
-              />
-            </View>
-          </View>
-        ) : (
-          <NativeNoahButton
-            label="Save"
-            onPress={handleSave}
-            className="mt-8"
-            isLoading={updateLightningAddressMutation.isPending}
-            loadingLabel="Saving..."
-            disabled={!normalizedUsername}
-            fullWidth
-          />
-        )}
-      </View>
+        <NativeNoahButton
+          label={
+            `${normalizedUsername}@${domain}` === lightningAddress &&
+            normalizedNostrKey === nostrPubkey
+              ? "Continue"
+              : "Save"
+          }
+          onPress={handleSave}
+          className="mt-8"
+          isLoading={updateIdentityMutation.isPending}
+          loadingLabel="Saving..."
+          disabled={!normalizedUsername || !normalizedNostrKey}
+          fullWidth
+        />
+      </ScrollView>
     </NoahSafeAreaView>
   );
 };

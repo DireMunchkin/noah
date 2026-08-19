@@ -129,6 +129,19 @@ export type LightningInvoiceRequestNotification = { transaction_id: string, amou
 
 export type MaintenanceNotification = { notification_k1: string, };
 
+/**
+ * Represents a configured hosted NIP-05 identity.
+ */
+export type Nip05IdentityResponse = { 
+/**
+ * The hosted Lightning and NIP-05 identifier.
+ */
+lightning_address: string, 
+/**
+ * The Nostr public key in canonical lowercase hex format.
+ */
+nostr_pubkey: string, };
+
 export type NotificationData = { "notification_type": "maintenance" } & MaintenanceNotification | { "notification_type": "lightning_invoice_request" } & LightningInvoiceRequestNotification | { "notification_type": "lightning_claim_request" } & LightningClaimRequestNotification | { "notification_type": "backup_trigger" } & BackupTriggerNotification | { "notification_type": "heartbeat" } & HeartbeatNotification;
 
 /**
@@ -177,6 +190,10 @@ reason: string | null,
  * The user's lightning address.
  */
 lightning_address: string | null, 
+/**
+ * The user's Nostr public key in canonical lowercase hex format.
+ */
+nostr_pubkey: string | null, 
 /**
  * The user's optional display name.
  */
@@ -236,6 +253,19 @@ export type UpdateLnAddressPayload = {
 ln_address: string, };
 
 /**
+ * Defines the payload for atomically configuring a hosted NIP-05 identity.
+ */
+export type UpdateNip05IdentityPayload = { 
+/**
+ * The local part of the user's hosted Lightning and NIP-05 identifier.
+ */
+username: string, 
+/**
+ * A Nostr public key encoded as npub or 64-character hex.
+ */
+nostr_pubkey: string, };
+
+/**
  * Defines the payload for updating a user's profile.
  */
 export type UpdateProfilePayload = { 
@@ -254,6 +284,10 @@ export type UserInfoResponse = {
  * The user's lightning address.
  */
 lightning_address: string, 
+/**
+ * The user's Nostr public key in canonical lowercase hex format.
+ */
+nostr_pubkey: string | null, 
 /**
  * The user's optional display name.
  */

@@ -1,10 +1,11 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 use std::time::SystemTime;
 
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, HeaderValue, StatusCode, header},
 };
 use chrono::{TimeZone, Utc};
 use expo_push_notification_client::Priority;
@@ -31,7 +32,7 @@ use crate::{
         AuthenticatedUser, EmailVerificationResponse, FiatPricesPayload, FiatPricesResponse,
         HistoricalFiatPricePayload, HistoricalFiatPriceResponse,
         LightningInvoiceRequestNotification, NotificationData, RegisterPayload, RegisterResponse,
-        SendEmailVerificationPayload, UserStatus, VerifyEmailPayload,
+        SendEmailVerificationPayload, UserStatus, VerifyEmailPayload, is_valid_ln_username,
     },
     utils::{make_k1, verify_auth},
     wide_event::WideEventHandle,
@@ -51,6 +52,49 @@ const LNURLP_MAX_SENDABLE: u64 = 1000000000;
 const COMMENT_ALLOWED_SIZE: u16 = 280;
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const TIMEOUT: Duration = Duration::from_secs(45);
+
+#[derive(Deserialize)]
+pub struct Nip05RequestQuery {
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Nip05Response {
+    pub names: BTreeMap<String, String>,
+}
+
+/// Resolves a hosted NIP-05 name to the linked Nostr public key.
+pub async fn nip05_request(
+    State(state): State<AppState>,
+    Query(query): Query<Nip05RequestQuery>,
+) -> anyhow::Result<(HeaderMap, Json<Nip05Response>), ApiError> {
+    let mut names = BTreeMap::new();
+
+    if let Some(name) = query.name.filter(|name| is_valid_ln_username(name)) {
+        let lightning_address = format!("{}@{}", name, state.lnurl_domain);
+        let user_repo = UserRepository::new(&state.db_pool);
+
+        if let Some(nostr_pubkey) = user_repo
+            .find_active_nostr_pubkey_by_lightning_address(&lightning_address)
+            .await?
+        {
+            names.insert(name, nostr_pubkey);
+        }
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        HeaderValue::from_static("*"),
+    );
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=60"),
+    );
+
+    Ok((headers, Json(Nip05Response { names })))
+}
+
 /// Generates and returns a new `k1` value for an LNURL-auth flow.
 ///
 /// The `k1` value is a random 32-byte hex-encoded string that is stored in Redis with
@@ -594,6 +638,7 @@ pub async fn register(
             event: None,
             reason: Some("User already registered".to_string()),
             lightning_address: user.lightning_address,
+            nostr_pubkey: user.nostr_pubkey,
             display_name: user.display_name,
             email: user.email,
             is_email_verified: user.is_email_verified,
@@ -655,6 +700,7 @@ pub async fn register(
         event: Some(AuthEvent::Registered),
         reason: None,
         lightning_address: Some(ln_address),
+        nostr_pubkey: None,
         display_name: None,
         email: None,
         is_email_verified: false,

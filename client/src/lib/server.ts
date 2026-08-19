@@ -25,11 +25,13 @@ const recordDeviceInfoReport = (fingerprint: string) => {
 };
 
 const applyServerRegistrationResult = (response: RegisterResponse) => {
-  const { setRegisteredWithServer, setEmailAddress, setEmailVerified } = useServerStore.getState();
+  const { setRegisteredWithServer, setEmailAddress, setEmailVerified, setNostrPubkey } =
+    useServerStore.getState();
   const { setDisplayName } = useProfileStore.getState();
-  const { lightning_address, display_name, email, is_email_verified } = response;
+  const { lightning_address, nostr_pubkey, display_name, email, is_email_verified } = response;
 
   setRegisteredWithServer(true, lightning_address, true);
+  setNostrPubkey(nostr_pubkey ?? null);
   setDisplayName(display_name ?? "");
   setEmailAddress(email);
   setEmailVerified(is_email_verified);

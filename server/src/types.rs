@@ -1,6 +1,7 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::str::FromStr;
 use std::sync::OnceLock;
 use ts_rs::TS;
 use validator::{Validate, ValidationError};
@@ -10,8 +11,32 @@ fn ln_username_regex() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"^[a-z0-9_.-]+$").expect("valid ln username regex"))
 }
 
-fn is_valid_ln_username(username: &str) -> bool {
+pub(crate) fn is_valid_ln_username(username: &str) -> bool {
     ln_username_regex().is_match(username)
+}
+
+pub fn normalize_nostr_pubkey(value: &str) -> Result<String, &'static str> {
+    let value = value.trim();
+    let normalized_prefix = value.to_ascii_lowercase();
+
+    if normalized_prefix.starts_with("nsec1") {
+        return Err("Nostr private keys are not accepted");
+    }
+
+    let hex_pubkey = if value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit()) {
+        value.to_ascii_lowercase()
+    } else {
+        let (hrp, bytes) = bech32::decode(value).map_err(|_| "Invalid Nostr public key")?;
+        if hrp.as_str() != "npub" || bytes.len() != 32 {
+            return Err("Invalid Nostr public key");
+        }
+        hex::encode(bytes)
+    };
+
+    bitcoin::secp256k1::XOnlyPublicKey::from_str(&hex_pubkey)
+        .map_err(|_| "Invalid Nostr public key")?;
+
+    Ok(hex_pubkey)
 }
 
 pub(crate) fn is_valid_lightning_address(value: &str) -> bool {
@@ -97,6 +122,8 @@ pub struct RegisterResponse {
     pub reason: Option<String>,
     /// The user's lightning address.
     pub lightning_address: Option<String>,
+    /// The user's Nostr public key in canonical lowercase hex format.
+    pub nostr_pubkey: Option<String>,
     /// The user's optional display name.
     pub display_name: Option<String>,
     /// The user's optional emergency email address.
@@ -199,6 +226,8 @@ pub struct AuthorizeMailboxPayload {
 pub struct UserInfoResponse {
     /// The user's lightning address.
     pub lightning_address: String,
+    /// The user's Nostr public key in canonical lowercase hex format.
+    pub nostr_pubkey: Option<String>,
     /// The user's optional display name.
     pub display_name: Option<String>,
     /// The user's optional emergency email address.
@@ -224,6 +253,26 @@ pub struct UpdateLnAddressPayload {
     /// The new lightning address for the user.
     #[validate(custom(function = "validate_lightning_address"))]
     pub ln_address: String,
+}
+
+/// Defines the payload for atomically configuring a hosted NIP-05 identity.
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../client/src/types/serverTypes.ts")]
+pub struct UpdateNip05IdentityPayload {
+    /// The local part of the user's hosted Lightning and NIP-05 identifier.
+    pub username: String,
+    /// A Nostr public key encoded as npub or 64-character hex.
+    pub nostr_pubkey: String,
+}
+
+/// Represents a configured hosted NIP-05 identity.
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../client/src/types/serverTypes.ts")]
+pub struct Nip05IdentityResponse {
+    /// The hosted Lightning and NIP-05 identifier.
+    pub lightning_address: String,
+    /// The Nostr public key in canonical lowercase hex format.
+    pub nostr_pubkey: String,
 }
 
 /// Defines the payload for updating a user's profile.
@@ -712,6 +761,35 @@ mod notification_payload_tests {
                 "notification_type": "heartbeat",
                 "notification_id": "heartbeat-id"
             })
+        );
+    }
+}
+
+#[cfg(test)]
+mod nostr_pubkey_tests {
+    use super::normalize_nostr_pubkey;
+
+    const HEX_PUBKEY: &str = "b0635d6a9851d3aed0cd6c495b282167acf761729078d975fc341b22650b07b9";
+
+    #[test]
+    fn accepts_hex_and_npub_public_keys() {
+        let bytes = hex::decode(HEX_PUBKEY).unwrap();
+        let hrp = bech32::Hrp::parse("npub").unwrap();
+        let npub = bech32::encode::<bech32::Bech32>(hrp, &bytes).unwrap();
+
+        assert_eq!(normalize_nostr_pubkey(HEX_PUBKEY).unwrap(), HEX_PUBKEY);
+        assert_eq!(normalize_nostr_pubkey(&npub).unwrap(), HEX_PUBKEY);
+    }
+
+    #[test]
+    fn rejects_private_and_malformed_keys() {
+        assert_eq!(
+            normalize_nostr_pubkey("nsec1private"),
+            Err("Nostr private keys are not accepted")
+        );
+        assert_eq!(
+            normalize_nostr_pubkey("not-a-public-key"),
+            Err("Invalid Nostr public key")
         );
     }
 }

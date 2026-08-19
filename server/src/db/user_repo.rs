@@ -31,6 +31,7 @@ impl std::error::Error for DuplicateArkAddressError {}
 pub struct User {
     pub pubkey: String,
     pub lightning_address: Option<String>,
+    pub nostr_pubkey: Option<String>,
     pub ark_address: Option<String>,
     pub display_name: Option<String>,
     pub email: Option<String>,
@@ -51,6 +52,7 @@ impl<'r> sqlx::FromRow<'r, PgRow> for User {
         Ok(Self {
             pubkey: row.try_get("pubkey")?,
             lightning_address: row.try_get("lightning_address")?,
+            nostr_pubkey: row.try_get("nostr_pubkey")?,
             ark_address: row.try_get("ark_address")?,
             display_name: row.try_get("display_name")?,
             email: row.try_get("email")?,
@@ -75,7 +77,7 @@ impl<'a> UserRepository<'a> {
     /// Finds a user by their public key.
     pub async fn find_by_pubkey(&self, pubkey: &str) -> Result<Option<User>> {
         let user = sqlx::query_as::<_, User>(
-            "SELECT pubkey, lightning_address, ark_address, display_name, email, is_email_verified, status FROM users WHERE pubkey = $1",
+            "SELECT pubkey, lightning_address, nostr_pubkey, ark_address, display_name, email, is_email_verified, status FROM users WHERE pubkey = $1",
         )
         .bind(pubkey)
         .fetch_optional(self.pool)
@@ -102,13 +104,32 @@ impl<'a> UserRepository<'a> {
     /// Finds a user by their lightning address.
     pub async fn find_by_lightning_address(&self, ln_address: &str) -> Result<Option<User>> {
         let user = sqlx::query_as::<_, User>(
-            "SELECT pubkey, lightning_address, ark_address, display_name, email, is_email_verified, status FROM users WHERE lightning_address = $1",
+            "SELECT pubkey, lightning_address, nostr_pubkey, ark_address, display_name, email, is_email_verified, status FROM users WHERE lightning_address = $1",
         )
         .bind(ln_address)
         .fetch_optional(self.pool)
         .await?;
 
         Ok(user)
+    }
+
+    /// Finds the canonical Nostr public key for an active hosted lightning address.
+    pub async fn find_active_nostr_pubkey_by_lightning_address(
+        &self,
+        ln_address: &str,
+    ) -> Result<Option<String>> {
+        let nostr_pubkey = sqlx::query_scalar::<_, String>(
+            "SELECT nostr_pubkey
+             FROM users
+             WHERE lightning_address = $1
+               AND nostr_pubkey IS NOT NULL
+               AND status = 'active'",
+        )
+        .bind(ln_address)
+        .fetch_optional(self.pool)
+        .await?;
+
+        Ok(nostr_pubkey)
     }
 
     /// Returns lightning address autocomplete suggestions scoped to a domain.
@@ -219,6 +240,34 @@ impl<'a> UserRepository<'a> {
             "UPDATE users SET lightning_address = $1, updated_at = now() WHERE pubkey = $2",
         )
         .bind(ln_address)
+        .bind(pubkey)
+        .execute(self.pool)
+        .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                if is_lightning_address_conflict(&e) {
+                    return Err(LightningAddressTakenError.into());
+                }
+                Err(e.into())
+            }
+        }
+    }
+
+    /// Atomically updates the hosted Lightning address and its NIP-05 public key.
+    pub async fn update_nip05_identity(
+        &self,
+        pubkey: &str,
+        ln_address: &str,
+        nostr_pubkey: &str,
+    ) -> Result<()> {
+        match sqlx::query(
+            "UPDATE users
+             SET lightning_address = $1, nostr_pubkey = $2, updated_at = now()
+             WHERE pubkey = $3",
+        )
+        .bind(ln_address)
+        .bind(nostr_pubkey)
         .bind(pubkey)
         .execute(self.pool)
         .await

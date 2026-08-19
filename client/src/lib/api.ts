@@ -34,7 +34,9 @@ import {
   RegisterPushToken,
   LightningAddressSuggestionsPayload,
   LightningAddressSuggestionsResponse,
+  Nip05IdentityResponse,
   UpdateLnAddressPayload,
+  UpdateNip05IdentityPayload,
   UpdateProfilePayload,
   UploadUrlResponse,
   ReportJobStatusPayload,
@@ -373,6 +375,9 @@ export const registerWithServer = (payload: RegisterPayload) =>
 
 export const updateLightningAddress = (payload: UpdateLnAddressPayload) =>
   post<UpdateLnAddressPayload, DefaultSuccessPayload>("/update_ln_address", payload);
+
+export const updateNip05Identity = (payload: UpdateNip05IdentityPayload) =>
+  post<UpdateNip05IdentityPayload, Nip05IdentityResponse>("/update_nip05_identity", payload);
 
 export const updateProfile = (payload: UpdateProfilePayload) =>
   post<UpdateProfilePayload, DefaultSuccessPayload>("/update_profile", payload);

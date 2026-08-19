@@ -38,11 +38,12 @@ use crate::{
             get_upload_url, get_user_info, heartbeat_response, initiate_backup_object_upload,
             list_backup_objects, list_backups, ln_address_suggestions, register_push_token,
             report_job_status, report_last_login, revoke_mailbox_authorization, submit_invoice,
-            submit_support_ticket, update_backup_settings, update_ln_address, update_profile,
+            submit_support_ticket, update_backup_settings, update_ln_address,
+            update_nip05_identity, update_profile,
         },
         public_api_v0::{
             auth_login, check_app_version, fiat_prices, get_k1, historical_fiat_price,
-            lnurlp_request, register, send_verification_email, verify_email,
+            lnurlp_request, nip05_request, register, send_verification_email, verify_email,
         },
     },
 };
@@ -280,6 +281,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
 
     // Create rate limiters
     let public_rate_limiter = rate_limit::create_public_rate_limiter();
+    let nip05_rate_limiter = rate_limit::create_public_rate_limiter();
     let auth_login_rate_limiter = rate_limit::create_public_rate_limiter();
     let lnurl_rate_limiter = rate_limit::create_lnurl_rate_limiter();
     let auth_rate_limiter = rate_limit::create_auth_rate_limiter();
@@ -300,6 +302,7 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
         .route("/ln_address_suggestions", post(ln_address_suggestions))
         .route("/user_info", post(get_user_info))
         .route("/update_ln_address", post(update_ln_address))
+        .route("/update_nip05_identity", post(update_nip05_identity))
         .route("/update_profile", post(update_profile))
         .route("/deregister", post(deregister))
         .route("/backup/upload_url", post(get_upload_url))
@@ -352,11 +355,17 @@ async fn start_server(config: Config) -> anyhow::Result<()> {
         .merge(fiat_router)
         .merge(bearer_router);
 
-    // Public LNURL route creates durable wallet actions, so protect it with the strict limiter.
-    let lnurl_router = Router::new().route(
-        "/.well-known/lnurlp/{username}",
-        get(lnurlp_request).layer(lnurl_rate_limiter),
-    );
+    // Public well-known routes have independent rate limiters because LNURL creates durable
+    // wallet actions while NIP-05 performs a read-only identity lookup.
+    let lnurl_router = Router::new()
+        .route(
+            "/.well-known/lnurlp/{username}",
+            get(lnurlp_request).layer(lnurl_rate_limiter),
+        )
+        .route(
+            "/.well-known/nostr.json",
+            get(nip05_request).layer(nip05_rate_limiter),
+        );
 
     let app = Router::new()
         .route("/", get(|| async { StatusCode::NO_CONTENT }))

@@ -13,7 +13,9 @@ use crate::db::mailbox_authorization_repo::MailboxAuthorizationRepository;
 use crate::db::push_token_repo::PushTokenRepository;
 use crate::db::user_repo::UserRepository;
 use crate::tests::common::{TestUser, create_test_user, setup_test_app};
-use crate::types::{UserInfoResponse, UserStatus};
+use crate::types::{Nip05IdentityResponse, UserInfoResponse, UserStatus};
+
+const NOSTR_PUBKEY: &str = "b0635d6a9851d3aed0cd6c495b282167acf761729078d975fc341b22650b07b9";
 
 #[tracing_test::traced_test]
 #[tokio::test]
@@ -128,6 +130,98 @@ async fn test_update_ln_address() {
         updated_user.lightning_address,
         Some("new@localhost".to_string())
     );
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_update_nip05_identity() {
+    let (app, app_state, _guard) = setup_test_app().await;
+
+    let user = TestUser::new();
+    let access_token = user.access_token(&app_state);
+    let mut tx = app_state.db_pool.begin().await.unwrap();
+    UserRepository::create(
+        &mut tx,
+        &user.pubkey().to_string(),
+        "existing@localhost",
+        None,
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/update_nip05_identity")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .header(
+                    http::header::AUTHORIZATION,
+                    format!("Bearer {}", access_token),
+                )
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "username": "Alice",
+                        "nostr_pubkey": NOSTR_PUBKEY.to_uppercase()
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let res: Nip05IdentityResponse = serde_json::from_slice(&body).unwrap();
+    assert_eq!(res.lightning_address, "alice@localhost");
+    assert_eq!(res.nostr_pubkey, NOSTR_PUBKEY);
+
+    let updated_user = UserRepository::new(&app_state.db_pool)
+        .find_by_pubkey(&user.pubkey().to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        updated_user.lightning_address.as_deref(),
+        Some("alice@localhost")
+    );
+    assert_eq!(updated_user.nostr_pubkey.as_deref(), Some(NOSTR_PUBKEY));
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_update_nip05_identity_rejects_private_key() {
+    let (app, app_state, _guard) = setup_test_app().await;
+
+    let user = TestUser::new();
+    create_test_user(&app_state, &user, None).await;
+    let access_token = user.access_token(&app_state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/update_nip05_identity")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .header(
+                    http::header::AUTHORIZATION,
+                    format!("Bearer {}", access_token),
+                )
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "username": "alice",
+                        "nostr_pubkey": "nsec1never-send-private-keys"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tracing_test::traced_test]

@@ -4924,6 +4924,7 @@ dependencies = [
  "axum",
  "bark-server-rpc",
  "base64",
+ "bech32",
  "bitcoin",
  "chrono",
  "clap",
