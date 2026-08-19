@@ -23,15 +23,12 @@ pub fn normalize_nostr_pubkey(value: &str) -> Result<String, &'static str> {
         return Err("Nostr private keys are not accepted");
     }
 
-    let hex_pubkey = if value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit()) {
-        value.to_ascii_lowercase()
-    } else {
-        let (hrp, bytes) = bech32::decode(value).map_err(|_| "Invalid Nostr public key")?;
-        if hrp.as_str() != "npub" || bytes.len() != 32 {
-            return Err("Invalid Nostr public key");
-        }
-        hex::encode(bytes)
-    };
+    let (hrp, bytes) =
+        bech32::decode(value).map_err(|_| "Nostr public keys must use npub encoding")?;
+    if hrp.as_str() != "npub" || bytes.len() != 32 {
+        return Err("Nostr public keys must use npub encoding");
+    }
+    let hex_pubkey = hex::encode(bytes);
 
     bitcoin::secp256k1::XOnlyPublicKey::from_str(&hex_pubkey)
         .map_err(|_| "Invalid Nostr public key")?;
@@ -261,8 +258,8 @@ pub struct UpdateLnAddressPayload {
 pub struct UpdateNip05IdentityPayload {
     /// The local part of the user's hosted Lightning and NIP-05 identifier.
     pub username: String,
-    /// A Nostr public key encoded as npub or 64-character hex.
-    pub nostr_pubkey: String,
+    /// An optional Nostr public key encoded as npub. Null disables NIP-05.
+    pub nostr_pubkey: Option<String>,
 }
 
 /// Represents a configured hosted NIP-05 identity.
@@ -271,8 +268,8 @@ pub struct UpdateNip05IdentityPayload {
 pub struct Nip05IdentityResponse {
     /// The hosted Lightning and NIP-05 identifier.
     pub lightning_address: String,
-    /// The Nostr public key in canonical lowercase hex format.
-    pub nostr_pubkey: String,
+    /// The optional Nostr public key in canonical lowercase hex format.
+    pub nostr_pubkey: Option<String>,
 }
 
 /// Defines the payload for updating a user's profile.
@@ -772,24 +769,27 @@ mod nostr_pubkey_tests {
     const HEX_PUBKEY: &str = "b0635d6a9851d3aed0cd6c495b282167acf761729078d975fc341b22650b07b9";
 
     #[test]
-    fn accepts_hex_and_npub_public_keys() {
+    fn accepts_npub_public_keys() {
         let bytes = hex::decode(HEX_PUBKEY).unwrap();
         let hrp = bech32::Hrp::parse("npub").unwrap();
         let npub = bech32::encode::<bech32::Bech32>(hrp, &bytes).unwrap();
 
-        assert_eq!(normalize_nostr_pubkey(HEX_PUBKEY).unwrap(), HEX_PUBKEY);
         assert_eq!(normalize_nostr_pubkey(&npub).unwrap(), HEX_PUBKEY);
     }
 
     #[test]
-    fn rejects_private_and_malformed_keys() {
+    fn rejects_private_hex_and_malformed_keys() {
         assert_eq!(
             normalize_nostr_pubkey("nsec1private"),
             Err("Nostr private keys are not accepted")
         );
         assert_eq!(
+            normalize_nostr_pubkey(HEX_PUBKEY),
+            Err("Nostr public keys must use npub encoding")
+        );
+        assert_eq!(
             normalize_nostr_pubkey("not-a-public-key"),
-            Err("Invalid Nostr public key")
+            Err("Nostr public keys must use npub encoding")
         );
     }
 }

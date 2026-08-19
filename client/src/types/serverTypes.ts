@@ -138,9 +138,9 @@ export type Nip05IdentityResponse = {
  */
 lightning_address: string, 
 /**
- * The Nostr public key in canonical lowercase hex format.
+ * The optional Nostr public key in canonical lowercase hex format.
  */
-nostr_pubkey: string, };
+nostr_pubkey: string | null, };
 
 export type NotificationData = { "notification_type": "maintenance" } & MaintenanceNotification | { "notification_type": "lightning_invoice_request" } & LightningInvoiceRequestNotification | { "notification_type": "lightning_claim_request" } & LightningClaimRequestNotification | { "notification_type": "backup_trigger" } & BackupTriggerNotification | { "notification_type": "heartbeat" } & HeartbeatNotification;
 
@@ -261,9 +261,9 @@ export type UpdateNip05IdentityPayload = {
  */
 username: string, 
 /**
- * A Nostr public key encoded as npub or 64-character hex.
+ * An optional Nostr public key encoded as npub. Null disables NIP-05.
  */
-nostr_pubkey: string, };
+nostr_pubkey: string | null, };
 
 /**
  * Defines the payload for updating a user's profile.

@@ -259,7 +259,7 @@ impl<'a> UserRepository<'a> {
         &self,
         pubkey: &str,
         ln_address: &str,
-        nostr_pubkey: &str,
+        nostr_pubkey: Option<&str>,
     ) -> Result<()> {
         match sqlx::query(
             "UPDATE users

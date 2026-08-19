@@ -11,6 +11,7 @@ import { NativeNoahBackButton } from "~/components/ui/NativeNoahIconButton";
 import type { SettingsStackParamList } from "~/Navigators";
 import { getUserInfo, updateProfile } from "~/lib/api";
 import { copyToClipboard } from "~/lib/clipboardUtils";
+import { hexPubkeyToNpub } from "~/lib/nostr";
 import { COLORS } from "~/lib/styleConstants";
 import { useIconColor, useThemeColors } from "~/hooks/useTheme";
 import { useDeriveKeyPairFromMnemonic } from "~/hooks/useCrypto";
@@ -72,6 +73,7 @@ const ProfileScreen = () => {
   const isRegisteredWithServer = useServerStore((state) => state.isRegisteredWithServer);
   const lightningAddress = useServerStore((state) => state.lightningAddress);
   const nostrPubkey = useServerStore((state) => state.nostrPubkey);
+  const nostrNpub = hexPubkeyToNpub(nostrPubkey);
   const setEmailAddress = useServerStore((state) => state.setEmailAddress);
   const setNostrPubkey = useServerStore((state) => state.setNostrPubkey);
   const displayName = useProfileStore((state) => state.displayName);
@@ -255,10 +257,10 @@ const ProfileScreen = () => {
                   </Text>
                 </View>
               )}
-              {nostrPubkey ? (
+              {nostrNpub ? (
                 <>
                   <View className="h-px bg-border" />
-                  <CopyRow label="NIP-05 Nostr public key" value={nostrPubkey} />
+                  <CopyRow label="NIP-05 Nostr public key" value={nostrNpub} />
                 </>
               ) : null}
               <View className="h-px bg-border" />
@@ -267,7 +269,7 @@ const ProfileScreen = () => {
                 className="flex-row items-center justify-between px-4 py-4"
               >
                 <Text className="text-base font-semibold text-foreground">
-                  {nostrPubkey ? "Change Lightning & NIP-05" : "Configure Lightning & NIP-05"}
+                  {nostrNpub ? "Change Lightning & NIP-05" : "Configure Lightning & NIP-05"}
                 </Text>
                 <Icon name="chevron-forward-outline" size={22} color={iconColor} />
               </Pressable>

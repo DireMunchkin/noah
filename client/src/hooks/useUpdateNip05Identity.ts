@@ -11,19 +11,19 @@ const updateNip05IdentityWrapper = async ({
   nostrPubkey,
 }: {
   username: string;
-  nostrPubkey: string;
+  nostrPubkey: string | null;
 }) => {
   const normalizedUsername = username.trim().toLowerCase();
-  const normalizedNostrPubkey = nostrPubkey.trim();
+  const normalizedNostrPubkey = nostrPubkey?.trim() || null;
 
   if (!normalizedUsername) {
     throw new Error("Enter a username");
   }
-  if (!normalizedNostrPubkey) {
-    throw new Error("Enter a Nostr public key");
+  if (normalizedNostrPubkey?.toLowerCase().startsWith("nsec1")) {
+    throw new Error("Never paste a Nostr private key. Enter an npub public key.");
   }
-  if (normalizedNostrPubkey.toLowerCase().startsWith("nsec1")) {
-    throw new Error("Never paste a Nostr private key. Enter an npub or hex public key.");
+  if (normalizedNostrPubkey && !normalizedNostrPubkey.toLowerCase().startsWith("npub1")) {
+    throw new Error("Nostr public keys must use npub encoding");
   }
 
   const result = await updateNip05Identity({
@@ -49,7 +49,7 @@ export const useUpdateNip05Identity = (callbacks?: {
     mutationFn: updateNip05IdentityWrapper,
     onSuccess: (identity) => {
       setNip05Identity(identity.lightning_address, identity.nostr_pubkey);
-      log.d("Successfully configured NIP-05 identity");
+      log.d("Successfully updated Lightning and NIP-05 settings");
       callbacks?.onSuccess?.();
     },
     onError: (error: Error) => {

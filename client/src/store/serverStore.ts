@@ -56,7 +56,7 @@ interface ServerState {
   ) => void;
   setLightningAddress: (lightningAddress: string) => void;
   setNostrPubkey: (nostrPubkey: string | null) => void;
-  setNip05Identity: (lightningAddress: string, nostrPubkey: string) => void;
+  setNip05Identity: (lightningAddress: string, nostrPubkey: string | null) => void;
   setBackupEnabled: (enabled: boolean) => void;
   setEmailAddress: (emailAddress: string | null) => void;
   setEmailVerified: (verified: boolean) => void;

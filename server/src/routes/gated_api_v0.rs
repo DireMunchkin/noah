@@ -322,7 +322,7 @@ pub async fn get_user_info(
     }))
 }
 
-/// Atomically configures a user's hosted Lightning address and NIP-05 public key.
+/// Atomically configures a user's hosted Lightning address and optional NIP-05 public key.
 pub async fn update_nip05_identity(
     State(state): State<AppState>,
     Extension(auth_payload): Extension<AuthenticatedUser>,
@@ -335,13 +335,23 @@ pub async fn update_nip05_identity(
         ));
     }
 
-    let nostr_pubkey = normalize_nostr_pubkey(&payload.nostr_pubkey)
+    let nostr_pubkey = payload
+        .nostr_pubkey
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(normalize_nostr_pubkey)
+        .transpose()
         .map_err(|message| ApiError::InvalidArgument(message.to_string()))?;
     let lightning_address = format!("{}@{}", username, state.lnurl_domain.to_lowercase());
 
     let user_repo = UserRepository::new(&state.db_pool);
     if let Err(e) = user_repo
-        .update_nip05_identity(&auth_payload.key, &lightning_address, &nostr_pubkey)
+        .update_nip05_identity(
+            &auth_payload.key,
+            &lightning_address,
+            nostr_pubkey.as_deref(),
+        )
         .await
     {
         if e.is::<crate::db::user_repo::LightningAddressTakenError>() {
