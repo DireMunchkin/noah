@@ -34,11 +34,13 @@ appId: com.noahwallet.regtest
 - extendedWaitUntil:
     visible: "Choose your Lightning Address"
     timeout: 10000
+- assertVisible: "Nostr public key (optional)"
 - tapOn:
     point: "50%,33%"
 - eraseText: 40
 - inputText: ${output.lightningUsername}
 - assertVisible: ${output.lightningUsername}
+- hideKeyboard
 - tapOn: "Save"
 - extendedWaitUntil:
     visible: "Success!"
