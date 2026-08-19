@@ -140,6 +140,10 @@ async fn test_nip05_request_returns_active_linked_user() {
             .unwrap(),
         "*"
     );
+    assert_eq!(
+        response.headers().get(http::header::CACHE_CONTROL).unwrap(),
+        "public, max-age=60"
+    );
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let res: Nip05Response = serde_json::from_slice(&body).unwrap();
