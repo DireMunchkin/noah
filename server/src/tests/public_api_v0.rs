@@ -302,6 +302,41 @@ async fn test_lnurlp_request_omits_address_for_different_ark_server() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
+async fn test_lnurlp_request_ignores_deprecated_wallet_parameter() {
+    let (app, app_state, _guard) = setup_public_test_app().await;
+    let (_, ark_address) = test_ark_address(0x11);
+
+    sqlx::query("INSERT INTO users (pubkey, lightning_address, ark_address) VALUES ($1, $2, $3)")
+        .bind("test_pubkey")
+        .bind("test@localhost")
+        .bind(ark_address)
+        .execute(&app_state.db_pool)
+        .await
+        .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri("/.well-known/lnurlp/test?wallet=noahwallet")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let res: LnurlpDefaultResponse = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(res.tag, "payRequest");
+    assert_eq!(res.callback, "https://localhost/.well-known/lnurlp/test");
+    assert_eq!(res.ark, None);
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
 async fn test_lnurlp_invoice_request_returns_matching_ark_address_without_mailbox() {
     let (app, app_state, _guard) = setup_public_test_app().await;
     let (server_pubkey, ark_address) = test_ark_address(0x11);
