@@ -55,6 +55,8 @@ import UnilateralExitScreen from "~/screens/UnilateralExitScreen";
 import ExitVtxoDetailScreen from "~/screens/ExitVtxoDetailScreen";
 import PushNotificationsRequiredScreen from "~/screens/PushNotificationsRequiredScreen";
 import UnifiedPushScreen from "~/screens/UnifiedPushScreen";
+import BatteryOptimizationScreen from "~/screens/BatteryOptimizationScreen";
+import { shouldPromptForBatteryOptimization } from "~/lib/batteryOptimization";
 import {
   getPushPermissionStatus,
   registerForPushNotificationsAsync,
@@ -102,6 +104,7 @@ export type OnboardingStackParamList = {
   EmailVerification: { fromSettings?: boolean } | undefined;
   LightningAddress: { fromOnboarding: boolean };
   UnifiedPush: { fromOnboarding?: boolean } | undefined;
+  BatteryOptimization: undefined;
 };
 
 export type HomeStackParamList = {
@@ -283,6 +286,11 @@ const OnboardingStackScreen = () => (
       component={UnifiedPushScreen}
       options={{ animation: "default" }}
     />
+    <OnboardingStack.Screen
+      name="BatteryOptimization"
+      component={BatteryOptimizationScreen}
+      options={{ animation: "default" }}
+    />
   </OnboardingStack.Navigator>
 );
 
@@ -455,6 +463,12 @@ const AppTabs = ({ preloadedIcons }: { preloadedIcons: PreloadedIcons }) => {
 
 const AppNavigation = () => {
   const { isInitialized } = useWalletStore();
+  const hasSeenBatteryOptimizationPrompt = useWalletStore(
+    (state) => state.hasSeenBatteryOptimizationPrompt,
+  );
+  const markBatteryOptimizationPromptShown = useWalletStore(
+    (state) => state.markBatteryOptimizationPromptShown,
+  );
   const [isCheckingWallet, setIsCheckingWallet] = useState(true);
   const [pushPermissionStatus, setPushPermissionStatus] = useState<PermissionStatus | "checking">(
     "checking",
@@ -593,6 +607,11 @@ const AppNavigation = () => {
     hasResolvedPushPermission &&
     pushPermissionStatus === PermissionStatus.DENIED;
 
+  const shouldShowBatteryOptimizationScreen =
+    isInitialized &&
+    !hasSeenBatteryOptimizationPrompt &&
+    shouldPromptForBatteryOptimization();
+
   const isLoadingIcons = Platform.OS !== "ios" && preloadedIcons === null;
 
   if (isCheckingWallet || isLoadingIcons) {
@@ -618,6 +637,16 @@ const AppNavigation = () => {
           onRequestPermission={handleRequestPermission}
           onRetryStatus={handleRetryPermissionStatus}
         />
+        <PortalHost />
+      </NavigationContainer>
+    );
+  }
+
+  if (shouldShowBatteryOptimizationScreen) {
+    return (
+      <NavigationContainer theme={navigationTheme}>
+        <StatusBar style={statusBarStyle} />
+        <BatteryOptimizationScreen onContinue={markBatteryOptimizationPromptShown} />
         <PortalHost />
       </NavigationContainer>
     );

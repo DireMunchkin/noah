@@ -4,6 +4,9 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import com.margelo.nitro.core.Promise
 import com.margelo.nitro.noahtools.audio.NoahToolsAudio
 import com.margelo.nitro.NitroModules
@@ -220,6 +223,38 @@ class NoahTools : HybridNoahToolsSpec() {
         val googleApiAvailability = GoogleApiAvailability.getInstance()
         val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(context)
         return resultCode == ConnectionResult.SUCCESS
+    }
+
+    override fun isBatteryOptimizationEnabled(): Boolean {
+        val context = NitroModules.applicationContext ?: return false
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager?
+        return !(powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true)
+    }
+
+    override fun openBatteryOptimizationSettings(): Boolean {
+        val context = NitroModules.applicationContext ?: return false
+
+        // Prefer the per-app "Don't optimize" dialog, then the battery optimization list,
+        // and finally the app details page which is available on virtually any Android device.
+        val attempts = listOf(
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${context.packageName}")
+            },
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+        )
+
+        return attempts.any { intent ->
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
     }
 
     override fun registerUnifiedPush() {
